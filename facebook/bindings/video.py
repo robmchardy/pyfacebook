@@ -128,4 +128,4 @@ BINDINGS = {
     'getUploadLimits': [],
 }
 
-Proxy = proxies.build_proxy('video', bindings, VideoProxy)
+Proxy = proxies.build_proxy('video', BINDINGS, VideoProxy)
