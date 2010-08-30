@@ -10,8 +10,6 @@ class FriendsProxy(proxies.Proxy):
         return super(FriendsProxy, self).get(**kwargs)
 
 BINDINGS = {
-    '_base': FriendsProxy,
-
     'areFriends': [
         ('uids1', list, {}),
         ('uids2', list, {}),
