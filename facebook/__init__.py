@@ -49,7 +49,6 @@ import time
 import struct
 import urllib
 import urllib2
-import httplib
 import hmac
 try:
     import hashlib
@@ -58,7 +57,8 @@ except ImportError:
 from django.conf import settings
 import binascii
 import urlparse
-import mimetypes
+
+from . import bindings, urlread
 
 # try to use simplejson first, otherwise fallback to XML
 RESPONSE_FORMAT = 'JSON'
@@ -81,33 +81,6 @@ except (ImportError, AttributeError):
                 from xml.dom import minidom
                 RESPONSE_FORMAT = 'XML'
 
-# support Google App Engine.  GAE does not have a working urllib.urlopen.
-try:
-    from google.appengine.api import urlfetch
-
-    def urlread(url, data=None, headers=None):
-        if data is not None:
-            if headers is None:
-                headers = {"Content-type": "application/x-www-form-urlencoded"}
-            method = urlfetch.POST
-        else:
-            if headers is None:
-                headers = {}
-            method = urlfetch.GET
-
-        result = urlfetch.fetch(url, method=method,
-                                payload=data, headers=headers)
-
-        if result.status_code == 200:
-            return result.content
-        else:
-            raise urllib2.URLError("fetch error url=%s, code=%d" % (url, result.status_code))
-
-except ImportError:
-    def urlread(url, data=None):
-        res = urllib2.urlopen(url, data=data)
-        return res.read()
-
 __all__ = ['Facebook','create_hmac']
 
 VERSION = '1.0a2'
@@ -116,781 +89,9 @@ FACEBOOK_URL = 'http://api.facebook.com/restserver.php'
 FACEBOOK_VIDEO_URL = 'http://api-video.facebook.com/restserver.php'
 FACEBOOK_SECURE_URL = 'https://api.facebook.com/restserver.php'
 
+
 def create_hmac(tbhashed):
     return hmac.new(settings.SECRET_KEY, tbhashed, hashlib.sha1).hexdigest()
-
-class json(object): pass
-
-# simple IDL for the Facebook API
-METHODS = {
-    'application': {
-        'getPublicInfo': [
-            ('application_id', int, ['optional']),
-            ('application_api_key', str, ['optional']),
-            ('application_canvas_name', str,['optional']),
-        ],
-    },
-
-    # admin methods
-    'admin': {
-        'getAllocation': [
-            ('integration_point_name', str, []),
-        ],
-        'getRestrictionInfo': [],
-        'setRestrictionInfo': [
-            ('format', str, ['optional']),
-            ('callback', str, ['optional']),
-            ('restriction_str', json, ['optional']),
-        ],
-        # Some methods don't work with access_tokens, the signed option forces
-        # use of the secret_key signature (avoids error 15 and, sometimes, 8) 
-        'getAppProperties': [
-            ('properties', list, []),
-            'signed'
-        ],
-        'setAppProperties': [
-            ('properties', json, []),
-            'signed'
-        ],
-    },
-
-    # auth methods
-    'auth': {
-        'revokeAuthorization': [
-            ('uid', int, ['optional']),
-        ],
-        'revokeExtendedPermission': [
-            ('perm', str, []),
-            ('uid', int, ['optional']),
-        ],
-    },
-
-    # feed methods
-    'feed': {
-        'publishStoryToUser': [
-            ('title', str, []),
-            ('body', str, ['optional']),
-            ('image_1', str, ['optional']),
-            ('image_1_link', str, ['optional']),
-            ('image_2', str, ['optional']),
-            ('image_2_link', str, ['optional']),
-            ('image_3', str, ['optional']),
-            ('image_3_link', str, ['optional']),
-            ('image_4', str, ['optional']),
-            ('image_4_link', str, ['optional']),
-            ('priority', int, ['optional']),
-        ],
-
-        'publishActionOfUser': [
-            ('title', str, []),
-            ('body', str, ['optional']),
-            ('image_1', str, ['optional']),
-            ('image_1_link', str, ['optional']),
-            ('image_2', str, ['optional']),
-            ('image_2_link', str, ['optional']),
-            ('image_3', str, ['optional']),
-            ('image_3_link', str, ['optional']),
-            ('image_4', str, ['optional']),
-            ('image_4_link', str, ['optional']),
-            ('priority', int, ['optional']),
-        ],
-
-        'publishTemplatizedAction': [
-            ('title_template', str, []),
-            ('page_actor_id', int, ['optional']),
-            ('title_data', json, ['optional']),
-            ('body_template', str, ['optional']),
-            ('body_data', json, ['optional']),
-            ('body_general', str, ['optional']),
-            ('image_1', str, ['optional']),
-            ('image_1_link', str, ['optional']),
-            ('image_2', str, ['optional']),
-            ('image_2_link', str, ['optional']),
-            ('image_3', str, ['optional']),
-            ('image_3_link', str, ['optional']),
-            ('image_4', str, ['optional']),
-            ('image_4_link', str, ['optional']),
-            ('target_ids', list, ['optional']),
-        ],
-
-        'registerTemplateBundle': [
-            ('one_line_story_templates', json, []),
-            ('short_story_templates', json, ['optional']),
-            ('full_story_template', json, ['optional']),
-            ('action_links', json, ['optional']),
-        ],
-
-        'deactivateTemplateBundleByID': [
-            ('template_bundle_id', int, []),
-        ],
-
-        'getRegisteredTemplateBundles': [],
-
-        'getRegisteredTemplateBundleByID': [
-            ('template_bundle_id', str, []),
-        ],
-
-        'publishUserAction': [
-            ('template_bundle_id', int, []),
-            ('template_data', json, ['optional']),
-            ('target_ids', list, ['optional']),
-            ('body_general', str, ['optional']),
-            ('story_size', int, ['optional']),
-        ],
-    },
-
-    # fql methods
-    'fql': {
-        'query': [
-            ('query', str, []),
-        ],
-        'multiquery': [
-            ('queries', json, []),
-        ],
-    },
-
-    # friends methods
-    'friends': {
-        'areFriends': [
-            ('uids1', list, []),
-            ('uids2', list, []),
-        ],
-
-        'get': [
-            ('flid', int, ['optional']),
-        ],
-
-        'getLists': [],
-
-        'getAppUsers': [],
-        
-        'getMutualFriends': [
-            ('target_uid', int, []),
-            ('source_uid', int, ['optional']),
-        ],
-    },
-
-    # notifications methods
-    'notifications': {
-        'get': [],
-
-        'send': [
-            ('to_ids', list, []),
-            ('notification', str, []),
-            ('email', str, ['optional']),
-            ('type', str, ['optional']),
-        ],
-
-        'sendRequest': [
-            ('to_ids', list, []),
-            ('type', str, []),
-            ('content', str, []),
-            ('image', str, []),
-            ('invite', bool, []),
-        ],
-
-        'sendEmail': [
-            ('recipients', list, []),
-            ('subject', str, []),
-            ('text', str, ['optional']),
-            ('fbml', str, ['optional']),
-        ]
-    },
-
-    # profile methods
-    'profile': {
-        'setFBML': [
-            ('markup', str, ['optional']),
-            ('uid', int, ['optional']),
-            ('profile', str, ['optional']),
-            ('profile_action', str, ['optional']),
-            ('mobile_fbml', str, ['optional']),
-            ('profile_main', str, ['optional']),
-        ],
-
-        'getFBML': [
-            ('uid', int, ['optional']),
-            ('type', int, ['optional']),
-        ],
-
-        'setInfo': [
-            ('title', str, []),
-            ('type', int, []),
-            ('info_fields', json, []),
-            ('uid', int, []),
-        ],
-
-        'getInfo': [
-            ('uid', int, []),
-        ],
-
-        'setInfoOptions': [
-            ('field', str, []),
-            ('options', json, []),
-        ],
-
-        'getInfoOptions': [
-            ('field', str, []),
-        ],
-    },
-
-    # users methods
-    'users': {
-        'getInfo': [
-            ('uids', list, []),
-            ('fields', list, [('default', ['name'])]),
-        ],
-
-        'getStandardInfo': [
-            ('uids', list, []),
-            ('fields', list, [('default', ['uid'])]),
-        ],
-
-        'getLoggedInUser': [],
-
-        'isAppAdded': [],
-
-        'isAppUser': [
-            ('uid', int, []),
-        ],
-
-        'hasAppPermission': [
-            ('ext_perm', str, []),
-            ('uid', int, ['optional']),
-        ],
-
-        'setStatus': [
-            ('status', str, []),
-            ('clear', bool, []),
-            ('status_includes_verb', bool, ['optional']),
-            ('uid', int, ['optional']),
-        ],
-    },
-
-    # events methods
-    'events': {
-        'cancel': [
-            ('eid', int, []),
-            ('cancel_message', str, ['optional']),
-         ],
-
-        'create': [
-            ('event_info', json, []),
-        ],
-
-        'edit': [
-            ('eid', int, []),
-            ('event_info', json, []),
-        ],
-
-        'get': [
-            ('uid', int, ['optional']),
-            ('eids', list, ['optional']),
-            ('start_time', int, ['optional']),
-            ('end_time', int, ['optional']),
-            ('rsvp_status', str, ['optional']),
-        ],
-
-        'getMembers': [
-            ('eid', int, []),
-        ],
-
-        'invite': [
-            ('eid', int, []),
-            ('uids', list, []),
-            ('personal_message', str, ['optional']),
-        ],
-
-        'rsvp': [
-            ('eid', int, []),
-            ('rsvp_status', str, []),
-        ],
-
-        'edit': [
-            ('eid', int, []),
-            ('event_info', json, []),
-        ],
-
-        'invite': [
-            ('eid', int, []),
-            ('uids', list, []),
-            ('personal_message', str, ['optional']),
-        ],
-    },
-
-    # update methods
-    'update': {
-        'decodeIDs': [
-            ('ids', list, []),
-        ],
-    },
-
-    # groups methods
-    'groups': {
-        'get': [
-            ('uid', int, ['optional']),
-            ('gids', list, ['optional']),
-        ],
-
-        'getMembers': [
-            ('gid', int, []),
-        ],
-    },
-
-    # marketplace methods
-    'marketplace': {
-        'createListing': [
-            ('listing_id', int, []),
-            ('show_on_profile', bool, []),
-            ('listing_attrs', str, []),
-        ],
-
-        'getCategories': [],
-
-        'getListings': [
-            ('listing_ids', list, []),
-            ('uids', list, []),
-        ],
-
-        'getSubCategories': [
-            ('category', str, []),
-        ],
-
-        'removeListing': [
-            ('listing_id', int, []),
-            ('status', str, []),
-        ],
-
-        'search': [
-            ('category', str, ['optional']),
-            ('subcategory', str, ['optional']),
-            ('query', str, ['optional']),
-        ],
-    },
-
-    # pages methods
-    'pages': {
-        'getInfo': [
-            ('fields', list, [('default', ['page_id', 'name'])]),
-            ('page_ids', list, ['optional']),
-            ('uid', int, ['optional']),
-        ],
-
-        'isAdmin': [
-            ('page_id', int, []),
-        ],
-
-        'isAppAdded': [
-            ('page_id', int, []),
-        ],
-
-        'isFan': [
-            ('page_id', int, []),
-            ('uid', int, []),
-        ],
-    },
-
-    # photos methods
-    'photos': {
-        'addTag': [
-            ('pid', int, []),
-            ('tag_uid', int, [('default', 0)]),
-            ('tag_text', str, [('default', '')]),
-            ('x', float, [('default', 50)]),
-            ('y', float, [('default', 50)]),
-            ('tags', json, ['optional']),
-        ],
-
-        'createAlbum': [
-            ('name', str, []),
-            ('location', str, ['optional']),
-            ('description', str, ['optional']),
-        ],
-
-        'get': [
-            ('subj_id', int, ['optional']),
-            ('aid', int, ['optional']),
-            ('pids', list, ['optional']),
-        ],
-
-        'getAlbums': [
-            ('uid', int, ['optional']),
-            ('aids', list, ['optional']),
-        ],
-
-        'getTags': [
-            ('pids', list, []),
-        ],
-    },
-
-    # videos methods
-    'video': {
-        'getUploadLimits': [
-        ],
-    },
-
-    # status methods
-    'status': {
-        'get': [
-            ('uid', int, ['optional']),
-            ('limit', int, ['optional']),
-        ],
-        'set': [
-            ('status', str, ['optional']),
-            ('uid', int, ['optional']),
-        ],
-    },
-
-    # fbml methods
-    'fbml': {
-        'refreshImgSrc': [
-            ('url', str, []),
-        ],
-
-        'refreshRefUrl': [
-            ('url', str, []),
-        ],
-
-        'setRefHandle': [
-            ('handle', str, []),
-            ('fbml', str, []),
-        ],
-    },
-
-    # SMS Methods
-    'sms' : {
-        'canSend' : [
-            ('uid', int, []),
-        ],
-
-        'send' : [
-            ('uid', int, []),
-            ('message', str, []),
-            ('session_id', int, []),
-            ('req_session', bool, []),
-        ],
-    },
-
-    'data': {
-        'getCookies': [
-            ('uid', int, []),
-            ('string', str, ['optional']),
-        ],
-
-        'setCookie': [
-            ('uid', int, []),
-            ('name', str, []),
-            ('value', str, []),
-            ('expires', int, ['optional']),
-            ('path', str, ['optional']),
-        ],
-    },
-
-    # connect methods
-    'connect': {
-        'registerUsers': [
-            ('accounts', json, []),
-        ],
-
-        'unregisterUsers': [
-            ('email_hashes', json, []),
-        ],
-
-        'getUnconnectedFriendsCount': [
-        ],
-    },
-
-    'links': {
-        'post': [
-            ('url', str, []),
-            ('comment', str, []),
-            ('uid', int, []),
-            ('image', str, ['optional']),
-            ('callback', str, ['optional']),
-        ],
-        'preview': [
-            ('url', str, []),
-            ('callback', str, ['optional']),
-        ],
-    },
-
-    #stream methods (beta)
-    'stream' : {
-        'addComment' : [
-            ('post_id', int, []),
-            ('comment', str, []),
-            ('uid', int, ['optional']),
-        ],
-
-        'addLike': [
-            ('uid', int, ['optional']),
-            ('post_id', int, ['optional']),
-        ],
-
-        'get' : [
-            ('viewer_id', int, ['optional']),
-            ('source_ids', list, ['optional']),
-            ('start_time', int, ['optional']),
-            ('end_time', int, ['optional']),
-            ('limit', int, ['optional']),
-            ('filter_key', str, ['optional']),
-        ],
-
-        'getComments' : [
-            ('post_id', int, []),
-        ],
-
-        'getFilters' : [
-            ('uid', int, ['optional']),
-        ],
-
-        'publish' : [
-            ('message', str, ['optional']),
-            ('attachment', json, ['optional']),
-            ('action_links', json, ['optional']),
-            ('target_id', str, ['optional']),
-            ('uid', str, ['optional']),
-        ],
-
-        'remove' : [
-            ('post_id', int, []),
-            ('uid', int, ['optional']),
-        ],
-
-        'removeComment' : [
-            ('comment_id', int, []),
-            ('uid', int, ['optional']),
-        ],
-
-        'removeLike' : [
-            ('uid', int, ['optional']),
-            ('post_id', int, ['optional']),
-        ],
-    },
-
-    # livemessage methods (beta)
-    'livemessage': {
-        'send': [
-            ('recipient', int, []),
-            ('event_name', str, []),
-            ('message', str, []),  
-        ],
-    },
-
-    # dashboard methods (beta)
-    'dashboard': {
-        # setting counters for a single user
-        'decrementCount': [
-            ('uid', int, []),
-        ],
-
-        'incrementCount': [
-            ('uid', int, []),
-        ],
-
-        'getCount': [
-            ('uid', int, []),
-        ],
-
-        'setCount': [
-            ('uid', int, []),
-            ('count', int, []),
-        ],
-
-        # setting counters for multiple users
-        'multiDecrementCount': [
-            ('uids', list, []),
-        ],
-
-        'multiIncrementCount': [
-            ('uids', list, []),
-        ],
-
-        'multiGetCount': [
-            ('uids', list, []),
-        ],
-
-        'multiSetCount': [
-            ('uids', list, []),
-        ],
-
-        # setting news for a single user
-        'addNews': [
-            ('news', json, []),
-            ('image', str, ['optional']),
-            ('uid', int, ['optional']),
-        ],
-
-        'getNews': [
-            ('uid', int, []),
-            ('news_ids', list, ['optional']),
-        ],
-
-        'clearNews': [
-            ('uid', int, []),
-            ('news_ids', list, ['optional']),
-        ],
-
-        # setting news for multiple users
-        'multiAddNews': [
-            ('uids', list, []),
-            ('news', json, []),
-            ('image', str, ['optional']),
-        ],
-
-        'multiGetNews': [
-            ('uids', json, []),
-        ],
-
-        'multiClearNews': [
-            ('uids', json, []),
-        ],
-
-        # setting application news for all users
-        'addGlobalNews': [
-            ('news', json, []),
-            ('image', str, ['optional']),
-        ],
-
-        'getGlobalNews': [
-            ('news_ids', list, ['optional']),
-        ],
-
-        'clearGlobalNews': [
-            ('news_ids', list, ['optional']),
-        ],
-
-        # user activity
-        'getActivity': [
-            ('activity_ids', list, ['optional']),
-        ],
-
-        'publishActivity': [
-            ('activity', json, []),
-        ],
-
-        'removeActivity': [
-            ('activity_ids', list, []),
-        ],
-    },
-
-    # comments methods (beta)
-    'comments' : {
-        'add': [
-            # text should be after xid/object_id, but is required
-            ('text', str, []),
-            # One of xid and object_is is required. Can this be expressed?
-            ('xid', str, ['optional']),
-            ('object_id', str, ['optional']),
-            ('uid', int, ['optional']),
-            ('title', str, ['optional']),
-            ('url', str, ['optional']),
-            ('publish_to_stream', bool, [('default', False)]),
-        ],
-
-        'remove': [
-            # One of xid and object_is is required. Can this be expressed?
-            ('xid', str, ['optional']),
-            ('object_id', str, ['optional']),
-            # comment_id should be required
-            ('comment_id', str, ['optional']),
-        ],
-
-        'get': [
-            # One of xid and object_is is required. Can this be expressed?
-            ('xid', str, ['optional']),
-            ('object_id', str, ['optional']),
-        ],
-    }
-}
-
-
-def __fixup_param(name, klass, options, param):
-    optional = 'optional' in options
-    default = [x[1] for x in options if isinstance(x, tuple) and x[0] == 'default']
-    if default:
-        default = default[0]
-    else:
-        default = None
-    if param is None:
-        if klass is list and default:
-            param = default[:]
-        else:
-            param = default
-    if klass is json and isinstance(param, (list, dict)):
-        param = simplejson.dumps(param)
-    return param
-
-def __generate_facebook_method(namespace, method_name, param_data):
-    # This method-level option forces the method to be signed rather than using
-    # the access_token
-    signed = False
-    if 'signed' in param_data:
-        signed = True
-        param_data.remove('signed')
-
-    # a required parameter doesn't have 'optional' in the options,
-    # and has no tuple option that starts with 'default'
-    required = [x for x in param_data
-            if 'optional' not in x[2]
-            and not [y for y in x[2] if isinstance(y, tuple) and y and y[0] == 'default']]
-
-    def facebook_method(self, *args, **kwargs):
-        params = {}
-        for i, arg in enumerate(args):
-            params[param_data[i][0]] = arg
-        params.update(kwargs)
-
-        for param in required:
-            if param[0] not in params:
-                raise TypeError("missing parameter %s" % param[0])
-
-        for name, klass, options in param_data:
-            if name in params:
-                params[name] = __fixup_param(name, klass, options, params[name])
-
-        return self(method_name, params, signed=signed)
-
-    facebook_method.__name__ = method_name
-    facebook_method.__doc__ = "Facebook API call. See http://developers.facebook.com/documentation.php?v=1.0&method=%s.%s" % (namespace, method_name)
-
-    return facebook_method
-
-
-class Proxy(object):
-    """Represents a "namespace" of Facebook API calls."""
-
-    def __init__(self, client, name):
-        self._client = client
-        self._name = name
-
-    def __call__(self, method=None, args=None, add_session_args=True, signed=False):
-        # for Django templates
-        if method is None:
-            return self
-
-        if add_session_args:
-            self._client._add_session_args(args)
-
-        return self._client('%s.%s' % (self._name, method), args, signed=signed)
-
-
-# generate the Facebook proxies
-def __generate_proxies():
-    for namespace in METHODS:
-        methods = {}
-
-        for method, param_data in METHODS[namespace].iteritems():
-            methods[method] = __generate_facebook_method(namespace, method, param_data)
-
-        proxy = type('%sProxy' % namespace.title(), (Proxy,), methods)
-
-        globals()[proxy.__name__] = proxy
-
-__generate_proxies()
-
-
-
 
 
 class FacebookError(Exception):
@@ -904,299 +105,6 @@ class FacebookError(Exception):
 
     def __str__(self):
         return 'Error %s: %s' % (self.code, self.msg)
-
-
-class AuthProxy(AuthProxy):
-    """Special proxy for facebook.auth."""
-
-    def getSession(self):
-        """Facebook API call. See http://developers.facebook.com/documentation.php?v=1.0&method=auth.getSession"""
-        args = {}
-        try:
-            args['auth_token'] = self._client.auth_token
-        except AttributeError:
-            raise RuntimeError('Client does not have auth_token set.')
-        try:
-            args['generate_session_secret'] = self._client.generate_session_secret
-        except AttributeError:
-            pass
-        result = self._client('%s.getSession' % self._name, args)
-        self._client.session_key = result['session_key']
-        self._client.uid = result['uid']
-        self._client.secret = result.get('secret')
-        self._client.session_key_expires = result['expires']
-        return result
-
-    def createToken(self):
-        """Facebook API call. See http://developers.facebook.com/documentation.php?v=1.0&method=auth.createToken"""
-        token = self._client('%s.createToken' % self._name)
-        self._client.auth_token = token
-        return token
-
-
-class FriendsProxy(FriendsProxy):
-    """Special proxy for facebook.friends."""
-
-    def get(self, **kwargs):
-        """Facebook API call. See http://developers.facebook.com/documentation.php?v=1.0&method=friends.get"""
-        if not kwargs.get('flid') and self._client._friends:
-            return self._client._friends
-        return super(FriendsProxy, self).get(**kwargs)
-
-
-class PhotosProxy(PhotosProxy):
-    """Special proxy for facebook.photos."""
-
-    def upload(self, image, aid=None, uid=None, caption=None, size=(720, 720), filename=None, callback=None):
-        """Facebook API call. See http://developers.facebook.com/documentation.php?v=1.0&method=photos.upload
-
-        size -- an optional size (width, height) to resize the image to before uploading. Resizes by default
-                to Facebook's maximum display dimension of 720.
-        """
-        args = {}
-
-        if uid is not None:
-            args['uid'] = uid
-
-        if aid is not None:
-            args['aid'] = aid
-
-        if caption is not None:
-            args['caption'] = caption
-
-        if self._client.oauth2:
-            url = self._client.facebook_secure_url
-        else:
-            url = self._client.facebook_url
-
-        args = self._client._build_post_args('facebook.photos.upload', self._client._add_session_args(args))
-
-        try:
-            import cStringIO as StringIO
-        except ImportError:
-            import StringIO
-
-        # check for a filename specified...if the user is passing binary data in
-        # image then a filename will be specified
-        if filename is None:
-            try:
-                import Image
-            except ImportError:
-                data = StringIO.StringIO(open(image, 'rb').read())
-            else:
-                img = Image.open(image)
-                if size:
-                    img.thumbnail(size, Image.ANTIALIAS)
-                data = StringIO.StringIO()
-                img.save(data, img.format)
-        else:
-            # there was a filename specified, which indicates that image was not
-            # the path to an image file but rather the binary data of a file
-            data = StringIO.StringIO(image)
-            image = filename
-
-        content_type, body = self.__encode_multipart_formdata(list(args.iteritems()), [(image, data)])
-        urlinfo = urlparse.urlsplit(url)
-        try:
-            content_length = len(body)
-            chunk_size = 4096
-
-            if self._client.oauth2:
-                h = httplib.HTTPSConnection(urlinfo[1])
-            else:
-                h = httplib.HTTPConnection(urlinfo[1])
-            h.putrequest('POST', urlinfo[2])
-            h.putheader('Content-Type', content_type)
-            h.putheader('Content-Length', str(content_length))
-            h.putheader('MIME-Version', '1.0')
-            h.putheader('User-Agent', 'PyFacebook Client Library')
-            h.endheaders()
-
-            if callback:
-                count = 0
-                while len(body) > 0:
-                    if len(body) < chunk_size:
-                        data = body
-                        body = ''
-                    else:
-                        data = body[0:chunk_size]
-                        body = body[chunk_size:]
-
-                    h.send(data)
-                    count += 1
-                    callback(count, chunk_size, content_length)
-            else:
-                h.send(body)
-
-            response = h.getresponse()
-
-            if response.status != 200:
-                raise Exception('Error uploading photo: Facebook returned HTTP %s (%s)' % (response.status, response.reason))
-            response = response.read()
-        except:
-            # sending the photo failed, perhaps we are using GAE
-            try:
-                from google.appengine.api import urlfetch
-
-                try:
-                    response = urlread(url=url,data=body,headers={'POST':urlinfo[2],'Content-Type':content_type,'MIME-Version':'1.0'})
-                except urllib2.URLError:
-                    raise Exception('Error uploading photo: Facebook returned %s' % (response))
-            except ImportError:
-                # could not import from google.appengine.api, so we are not running in GAE
-                raise Exception('Error uploading photo.')
-
-        return self._client._parse_response(response, 'facebook.photos.upload')
-
-
-    def __encode_multipart_formdata(self, fields, files):
-        """Encodes a multipart/form-data message to upload an image."""
-        boundary = '-------tHISiStheMulTIFoRMbOUNDaRY'
-        crlf = '\r\n'
-        l = []
-
-        for (key, value) in fields:
-            l.append('--' + boundary)
-            l.append('Content-Disposition: form-data; name="%s"' % str(key))
-            l.append('')
-            l.append(str(value))
-        for (filename, value) in files:
-            l.append('--' + boundary)
-            l.append('Content-Disposition: form-data; filename="%s"' % (str(filename), ))
-            l.append('Content-Type: %s' % self.__get_content_type(filename))
-            l.append('')
-            l.append(value.getvalue())
-        l.append('--' + boundary + '--')
-        l.append('')
-        body = crlf.join(l)
-        content_type = 'multipart/form-data; boundary=%s' % boundary
-        return content_type, body
-
-
-    def __get_content_type(self, filename):
-        """Returns a guess at the MIME type of the file from the filename."""
-        return str(mimetypes.guess_type(filename)[0]) or 'application/octet-stream'
-
-
-class VideoProxy(VideoProxy):
-    """Special proxy for facebook.video."""
-
-    def upload(self, video, aid=None, title=None, description=None, filename=None, uid=None, privacy=None, callback=None):
-        """Facebook API call. See http://wiki.developers.facebook.com/index.php/Video.upload"""
-        args = {}
-
-        if aid is not None:
-            args['aid'] = aid
-
-        if title is not None:
-            args['title'] = title
-
-        if description is not None:
-            args['description'] = title
-            
-        if uid is not None:
-            args['uid'] = uid
-
-        if privacy is not None:
-            args['privacy'] = privacy
-
-        args = self._client._build_post_args('facebook.video.upload', self._client._add_session_args(args))
-
-        try:
-            import cStringIO as StringIO
-        except ImportError:
-            import StringIO
-
-        # check for a filename specified...if the user is passing binary data in
-        # video then a filename will be specified
-        if filename is None:
-            data = StringIO.StringIO(open(video, 'rb').read())
-        else:
-            # there was a filename specified, which indicates that video was not
-            # the path to an video file but rather the binary data of a file
-            data = StringIO.StringIO(video)
-            video = filename
-
-        content_type, body = self.__encode_multipart_formdata(list(args.iteritems()), [(video, data)])
-        
-        # Set the correct End Point Url, note this is different to all other FB EndPoints
-        urlinfo = urlparse.urlsplit(FACEBOOK_VIDEO_URL)
-        try:
-            content_length = len(body)
-            chunk_size = 4096
-
-            h = httplib.HTTPConnection(urlinfo[1])
-            h.putrequest('POST', urlinfo[2])
-            h.putheader('Content-Type', content_type)
-            h.putheader('Content-Length', str(content_length))
-            h.putheader('MIME-Version', '1.0')
-            h.putheader('User-Agent', 'PyFacebook Client Library')
-            h.endheaders()
-
-            if callback:
-                count = 0
-                while len(body) > 0:
-                    if len(body) < chunk_size:
-                        data = body
-                        body = ''
-                    else:
-                        data = body[0:chunk_size]
-                        body = body[chunk_size:]
-
-                    h.send(data)
-                    count += 1
-                    callback(count, chunk_size, content_length)
-            else:
-                h.send(body)
-
-            response = h.getresponse()
-
-            if response.status != 200:
-                raise Exception('Error uploading video: Facebook returned HTTP %s (%s)' % (response.status, response.reason))
-            response = response.read()
-        except:
-            # sending the photo failed, perhaps we are using GAE
-            try:
-                from google.appengine.api import urlfetch
-
-                try:
-                    response = urlread(url=FACEBOOK_VIDEO_URL,data=body,headers={'POST':urlinfo[2],'Content-Type':content_type,'MIME-Version':'1.0'})
-                except urllib2.URLError:
-                    raise Exception('Error uploading video: Facebook returned %s' % (response))
-            except ImportError:
-                # could not import from google.appengine.api, so we are not running in GAE
-                raise Exception('Error uploading video.')
-
-        return self._client._parse_response(response, 'facebook.video.upload')
-
-
-    def __encode_multipart_formdata(self, fields, files):
-        """Encodes a multipart/form-data message to upload an image."""
-        boundary = '-------tHISiStheMulTIFoRMbOUNDaRY'
-        crlf = '\r\n'
-        l = []
-
-        for (key, value) in fields:
-            l.append('--' + boundary)
-            l.append('Content-Disposition: form-data; name="%s"' % str(key))
-            l.append('')
-            l.append(str(value))
-        for (filename, value) in files:
-            l.append('--' + boundary)
-            l.append('Content-Disposition: form-data; filename="%s"' % (str(filename), ))
-            l.append('Content-Type: %s' % self.__get_content_type(filename))
-            l.append('')
-            l.append(value.getvalue())
-        l.append('--' + boundary + '--')
-        l.append('')
-        body = crlf.join(l)
-        content_type = 'multipart/form-data; boundary=%s' % boundary
-        return content_type, body
-
-
-    def __get_content_type(self, filename):
-        """Returns a guess at the MIME type of the file from the filename."""
-        return str(mimetypes.guess_type(filename)[0]) or 'application/octet-stream'
 
 
 class Facebook(object):
@@ -1352,9 +260,8 @@ class Facebook(object):
         else:
             self.facebook_secure_url = facebook_secure_url
 
-        for namespace in METHODS:
-            self.__dict__[namespace] = eval('%sProxy(self, \'%s\')' % (namespace.title(), 'facebook.%s' % namespace))
-
+        for namespace, klass in bindings.PROXIES.iteritems():
+            setattr(self, namespace, klass(self))
 
     def _hash_args(self, args, secret=None):
         """Hashes arguments by joining key=value pairs, appending a secret, and then taking the MD5 hex digest."""
@@ -1387,7 +294,6 @@ class Facebook(object):
         else:
             return ''.join(node.data for node in node.childNodes if node.nodeType == node.TEXT_NODE)
 
-
     def _parse_response_dict(self, node):
         """Parses an XML dictionary response node from Facebook."""
         result = {}
@@ -1398,7 +304,6 @@ class Facebook(object):
                 result['id'] = node.getAttribute('id')
         return result
 
-
     def _parse_response_list(self, node):
         """Parses an XML list response node from Facebook."""
         result = []
@@ -1406,12 +311,10 @@ class Facebook(object):
             result.append(self._parse_response_item(item))
         return result
 
-
     def _check_error(self, response):
         """Checks if the given Facebook response is an error, and then raises the appropriate exception."""
         if type(response) is dict and response.has_key('error_code'):
             raise FacebookError(response['error_code'], response['error_msg'], response['request_args'])
-
 
     def _build_post_args(self, method, args=None, signed=False):
         """Adds to args parameters that are necessary for every call to the API."""
@@ -1437,7 +340,6 @@ class Facebook(object):
 
         return args
 
-
     def _add_session_args(self, args=None):
         """Adds 'session_key' and 'call_id' to args, which are used for API calls that need sessions."""
         if args is None:
@@ -1453,7 +355,6 @@ class Facebook(object):
         args['call_id'] = str(int(time.time() * 1000))
 
         return args
-
 
     def _parse_response(self, response, method, format=None):
         """Parses the response according to the given (optional) format, which should be either 'JSON' or 'XML'."""
@@ -1478,7 +379,6 @@ class Facebook(object):
 
         return result
 
-
     def hash_email(self, email):
         """
         Hash an email address in a format suitable for Facebook Connect.
@@ -1490,7 +390,6 @@ class Facebook(object):
             hashlib.md5(email).hexdigest(),
         )
 
-
     def unicode_urlencode(self, params):
         """
         @author: houyr
@@ -1500,7 +399,6 @@ class Facebook(object):
             params = params.items()
         return urllib.urlencode([(k, isinstance(v, unicode) and v.encode('utf-8') or v)
                           for k, v in params])
-
 
     def __call__(self, method=None, args=None, secure=False, signed=False):
         """Make a call to Facebook's REST server."""
@@ -1526,12 +424,11 @@ class Facebook(object):
                 response = opener.open(self.facebook_url, post_data).read()
         else:
             if self.oauth2 or secure:
-                response = urlread(self.facebook_secure_url, post_data)
+                response = urlread.urlread(self.facebook_secure_url, post_data)
             else:
-                response = urlread(self.facebook_url, post_data)
+                response = urlread.urlread(self.facebook_url, post_data)
 
         return self._parse_response(response, method)
-
 
     def oauth2_access_token(self, code, next, required_permissions=None):
         """
@@ -1557,7 +454,7 @@ class Facebook(object):
             opener = urllib2.build_opener(proxy_handler)
             response = opener.open(url).read()
         else:
-            response = urlread(url)
+            response = urlread.urlread(url)
 
         result = urlparse.parse_qs(response)
         self.oauth2_token = result['access_token'][0]
@@ -1573,7 +470,6 @@ class Facebook(object):
         """
         return 'http://www.facebook.com/%s.php?%s' % (page, urllib.urlencode(args))
 
-
     def get_app_url(self, path=''):
         """
         Returns the URL for this app's canvas page, according to app_name.
@@ -1581,14 +477,12 @@ class Facebook(object):
         """
         return 'http://apps.facebook.com/%s/%s' % (self.app_name, path)
 
-
     def get_graph_url(self, path='', **args):
         """
         Returns the URL for the graph API with the supplied path and parameters
 
         """
         return 'https://graph.facebook.com/%s?%s' % (path, urllib.urlencode(args))
-
 
     def get_add_url(self, next=None):
         """
@@ -1601,7 +495,6 @@ class Facebook(object):
             args['next'] = next
 
         return self.get_url('install', **args)
-
 
     def get_authorize_url(self, next=None, next_cancel=None):
         """
@@ -1618,7 +511,6 @@ class Facebook(object):
             args['next_cancel'] = next_cancel
 
         return self.get_url('authorize', **args)
-
 
     def get_login_url(self, next=None, popup=False, canvas=True,
                       required_permissions=None):
@@ -1662,12 +554,10 @@ class Facebook(object):
     
             return self.get_url('login', **args)
 
-
     def login(self, popup=False):
         """Open a web browser telling the user to login to Facebook."""
         import webbrowser
         webbrowser.open(self.get_login_url(popup=popup))
-
 
     def get_ext_perm_url(self, ext_perm, next=None, popup=False):
         """
@@ -1687,12 +577,10 @@ class Facebook(object):
 
         return self.get_url('authorize', **args)
 
-
     def request_extended_permission(self, ext_perm, popup=False):
         """Open a web browser telling the user to grant an extended permission."""
         import webbrowser
         webbrowser.open(self.get_ext_perm_url(ext_perm, popup=popup))
-
 
     def check_session(self, request, params=None):
         """
@@ -1916,9 +804,6 @@ class Facebook(object):
             return params
         else:
             return False
-
-
-
 
 if __name__ == '__main__':
     # sample desktop application
