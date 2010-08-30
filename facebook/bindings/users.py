@@ -6,7 +6,7 @@ BINDINGS = {
         ('fields', list, {'default': ['name']}),
     ],
     'getStandardInfo': [
-        ('uids', list, []),
+        ('uids', list, {}),
         ('fields', list, {'default': ['uid']}),
     ],
     'getLoggedInUser': [],

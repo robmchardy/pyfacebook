@@ -138,8 +138,6 @@ class PhotosProxy(proxies.Proxy):
         return str(mimetypes.guess_type(filename)[0]) or 'application/octet-stream'
 
 BINDINGS = {
-    '_base': PhotosProxy,
-
     'addTag': [
         ('pid', int, {}),
         ('tag_uid', int, {'default': 0}),

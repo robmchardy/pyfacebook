@@ -1,5 +1,3 @@
-from .. import proxies
-
 from . import (
     admin, application, auth, comments, connect, dashboard, data, events, fbml,
     feed, fql, friends, groups, links, livemessage, marketplace, notifications,

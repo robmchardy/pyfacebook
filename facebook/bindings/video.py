@@ -125,10 +125,7 @@ class VideoProxy(proxies.Proxy):
         return str(mimetypes.guess_type(filename)[0]) or 'application/octet-stream'
 
 BINDINGS = {
-    '_base': proxies.VideoProxy,
-
-    'getUploadLimits': [
-    ],
+    'getUploadLimits': [],
 }
 
 Proxy = proxies.build_proxy('video', bindings, VideoProxy)

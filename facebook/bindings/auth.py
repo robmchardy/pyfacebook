@@ -28,8 +28,6 @@ class AuthProxy(proxies.Proxy):
         return token
 
 BINDINGS = {
-    '_base': AuthProxy,
-
     'revokeAuthorization': [
         ('uid', int, {'optional': True}),
     ],
