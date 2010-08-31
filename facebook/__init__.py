@@ -58,7 +58,7 @@ from django.conf import settings
 import binascii
 import urlparse
 
-from . import bindings, urlread
+from . import bindings, graph, urlread
 
 # try to use simplejson first, otherwise fallback to XML
 RESPONSE_FORMAT = 'JSON'
@@ -259,6 +259,8 @@ class Facebook(object):
             self.facebook_secure_url = FACEBOOK_SECURE_URL
         else:
             self.facebook_secure_url = facebook_secure_url
+
+        self.graph = graph.Graph(self)
 
         for namespace, klass in bindings.PROXIES.iteritems():
             setattr(self, namespace, klass(self))
