@@ -44,7 +44,10 @@ class Graph(object):
     def _request(self, method, data=None, content_type=None):
         if not self._path:
             raise AttributeError('No path given to graph object')
-        query = urllib.urlencode({'access_token': self._facebook.oauth2_token})
+        query = {}
+        if getattr(self._facebook, 'oauth2_token', None):
+            query['access_token'] = self._facebook.oauth2_token
+        query = urllib.urlencode(query)
         url = urlparse.urlunparse((
             self.FACEBOOK_GRAPH_SCHEME,
             self.FACEBOOK_GRAPH_BASE,
@@ -82,7 +85,7 @@ class Graph(object):
 
 if __name__ == '__main__':
     class Fakebook(object):
-        oauth2_token = '2227470867|2.gQeACU_cgPMqzFjtXsUHHQ__.3600.1283281200-100001430902229|m3_rRaX8aqvP335DI79ib2eJyM0.'
+        oauth2_token = '' # put a valid token here
         proxy = None
     g = Graph(Fakebook())
     print g.filter('btaylor').get()
