@@ -108,6 +108,7 @@ def subscription_callback(token):
             else:
                 data = simplejson.loads(request.raw_post_data)
                 return view(request, data, *args, **kwargs)
+        wrapped.token = token
         return wrapped
     return inner_decorator
 
