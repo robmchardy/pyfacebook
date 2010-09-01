@@ -2,6 +2,8 @@ import urllib
 import urllib2
 import urlparse
 
+from django.http import HttpResponse, HttpResponseForbidden
+
 try:
     import json as simplejson
     simplejson.loads
@@ -82,6 +84,32 @@ class Graph(object):
 
     def __set__(self, val):
         return self.post(val)
+
+def subscription_callback(token):
+    '''
+    Use this to wrap views that are supposed to be used as real-time
+    subscription callbacks.
+
+    @subscription_callback('someUniqueToken')
+    def someview(request, data):
+        pass
+    '''
+    def inner_decorator(view):
+        def wrapped(request, *args, **kwargs):
+            if request.method == 'GET':
+                hub_mode = request.GET.get('hub.mode', None)
+                hub_challenge = request.GET.get('hub.challenge', None)
+                hub_verify_token = request.GET.get('hub.verify_token', None)
+                if hub_mode != 'subscribe' \
+                        or not hub_challenge \
+                        or hub_verify_token != token:
+                    return HttpResponseForbidden('')
+                return HttpResponse(hub_challenge)
+            else:
+                data = simplejson.loads(request.raw_post_data)
+                return view(request, data, *args, **kwargs)
+        return wrapped
+    return inner_decorator
 
 if __name__ == '__main__':
     class Fakebook(object):
