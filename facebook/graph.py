@@ -53,12 +53,13 @@ class Graph(object):
             response = urllib2.urlopen(request).read()
         return response
 
-    def _request(self, method, data=None, content_type=None):
+    def _request(self, method, data=None, access_token=None, content_type=None):
         if not self._path:
             raise AttributeError('No path given to graph object')
         query = {}
-        if getattr(self._facebook, 'oauth2_token', None):
-            query['access_token'] = self._facebook.oauth2_token
+        access_token = access_token or getattr(self._facebook, 'oauth2_token', None)
+        if access_token:
+            query['access_token'] = access_token
         query = urllib.urlencode(query)
         url = urlparse.urlunparse((
             self.FACEBOOK_GRAPH_SCHEME,
@@ -74,15 +75,15 @@ class Graph(object):
             return simplejson.loads(response)
         return None
 
-    def get(self, **kwargs):
-        return self._request('GET', data=None, **kwargs)
+    def get(self, access_token=None):
+        return self._request('GET', data=None, access_token=access_token)
 
-    def post(self, data, content_type='application/json'):
+    def post(self, data, access_token=None, content_type='application/json'):
         data = simplejson.dumps(data)
-        return self._request('POST', data, content_type=content_type)
+        return self._request('POST', data, access_token=access_token, content_type=content_type)
 
-    def delete(self, **kwargs):
-        return self._request('DELETE', data=None, **kwargs)
+    def delete(self, access_token=None):
+        return self._request('DELETE', data=None, access_token=access_token)
 
     def __iter__(self):
         return iter(self.get())
@@ -90,7 +91,7 @@ class Graph(object):
     def __set__(self, val):
         return self.post(val)
 
-    def get_access_token(self):
+    def get_app_access_token(self):
         query = urllib.urlencode({
             'client_id': self._facebook.app_id,
             'client_secret': self._facebook.secret_key,
@@ -106,7 +107,8 @@ class Graph(object):
         ))
         request = Request(url)
         response = self._read(request)
-        logging.debug('RESPONSE: %s' % response)
+        values = urlparse.parse_qs(response)
+        return values['access_token']
 
 def subscription_callback(token):
     '''
