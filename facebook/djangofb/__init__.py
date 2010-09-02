@@ -56,9 +56,9 @@ class Facebook(facebook.Facebook):
             request.session['facebook'] = {
                 'oauth2_token': data['access_token'],
                 'oauth2_token_expires': data['expires'],
-                'session_key': data['session_key'],
-                'uid': data['uid'],
             }
+            self.session_key = data['session_key']
+            self.uid = data['uid']
 
     def oauth2_check_session(self, request):
         """
@@ -76,19 +76,16 @@ class Facebook(facebook.Facebook):
                     self.validate_oauth_cookie_signature(request.COOKIES))
 
         # See if we've got this user's access_token in our session
-        if 'oauth2_token' in request.session.get('facebook', {}):
+        if 'facebook' in request.session:
             self.oauth2_token = request.session['facebook']['oauth2_token']
             self.oauth2_token_expires = request.session['facebook']['oauth2_token_expires']
-            self.session_key = request.session['facebook']['session_key']
-            self.uid = request.session['facebook']['uid']
 
             if self.oauth2_token_expires:
                 if self.oauth2_token_expires > time.time():
                     # Got a token, and it's valid
                     valid_token = True
                 else:
-                    del request.session['facebook']['oauth2_token']
-                    del request.session['facebook']['oauth2_token_expires']
+                    del request.session['facebook']
 
         return valid_token
 
@@ -145,12 +142,10 @@ class Facebook(facebook.Facebook):
 
             self.oauth2_access_token(request.GET['code'], next=redirect_uri)
 
-            request.session['facebook'] = request.session.get('facebook', {
-                'session_key': None,
-                'uid': None
-            })
-            request.session['facebook']['oauth2_token'] = self.oauth2_token
-            request.session['facebook']['oauth2_token_expires'] = self.oauth2_token_expires
+            request.session['facebook'] = {
+                'oauth2_token': self.oauth2_token,
+                'oauth2_token_expires': self.oauth2_token_expires,
+            }
 
             return True
         # else: 'error_reason' in request.GET
@@ -221,7 +216,7 @@ def require_oauth(redirect_path=None, required_permissions=None,
                 # Invalid token (I think this can happen if the user logs out)
                 # Unfortunately we don't find this out until we use the api 
                 if e.code == 190:
-                    del request.session['facebook']['oauth2_token']
+                    del request.session['facebook']
                     url = fb.get_login_url(next=redirect_uri,
                             required_permissions=required_permissions)
                     return fb.redirect(url) 
