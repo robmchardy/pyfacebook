@@ -44,6 +44,15 @@ class Graph(object):
     def filter(self, path):
         return Graph(self._facebook, self._path + [path])
 
+    def _read(self, request):
+        if self._facebook.proxy:
+            proxy_handler = urllib2.ProxyHandler(self._facebook.proxy)
+            opener = urllib2.build_opener(proxy_handler)
+            response = opener.open(request).read()
+        else:
+            response = urllib2.urlopen(request).read()
+        return response
+
     def _request(self, method, data=None, content_type=None):
         if not self._path:
             raise AttributeError('No path given to graph object')
@@ -60,12 +69,7 @@ class Graph(object):
             '',
         ))
         request = Request(url, data, method=method, content_type=content_type)
-        if self._facebook.proxy:
-            proxy_handler = urllib2.ProxyHandler(self._facebook.proxy)
-            opener = urllib2.build_opener(proxy_handler)
-            response = opener.open(request).read()
-        else:
-            response = urllib2.urlopen(request).read()
+        response = self._read(request)
         if response:
             return simplejson.loads(response)
         return None
@@ -85,6 +89,24 @@ class Graph(object):
 
     def __set__(self, val):
         return self.post(val)
+
+    def get_access_token(self):
+        query = urllib.urlencode({
+            'client_id': self._facebook.app_id,
+            'client_secret': self._facebook.secret_key,
+            'type': 'client_cred',
+        })
+        url = urlparse.urlunparse((
+            self.FACEBOOK_GRAPH_SCHEME,
+            self.FACEBOOK_GRAPH_BASE,
+            '/oauth/access_token'),
+            '',
+            query,
+            '',
+        ))
+        request = Request(url)
+        response = self._read(request)
+        logging.debug('RESPONSE: %s' % response)
 
 def subscription_callback(token):
     '''
