@@ -22,9 +22,7 @@ _thread_locals = local()
 class Facebook(facebook.Facebook):
     def redirect(self, url):
         """
-        Helper for Django which redirects to another page. If inside a
-        canvas page, writes a <fb:redirect> instead to achieve the same effect.
-
+        Helper for Django which redirects to another page.
         """
         parts = urlparse.urlparse(url)
         netloc = parts.netloc.split(':')[0]
