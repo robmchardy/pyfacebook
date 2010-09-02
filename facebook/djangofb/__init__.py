@@ -61,7 +61,7 @@ class Facebook(facebook.Facebook):
         valid_token = False
 
         if 'oauth2_token' in request.session:
-            if request.session['oauth2_token_expires'] > time.time()
+            if request.session['oauth2_token_expires'] > time.time():
                 return True
 
         # See if they're in the request
