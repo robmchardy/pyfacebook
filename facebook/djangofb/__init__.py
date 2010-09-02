@@ -20,18 +20,10 @@ class Facebook(facebook.Facebook):
         """
         parts = urlparse.urlparse(url)
         netloc = parts.netloc.split(':')[0]
-        if netloc.endswith('.facebook.com') and netloc != 'graph.facebook.com':
+        if netloc.endswith('.facebook.com'):
             return HttpResponse('<script type="text/javascript">\ntop.location.href = "%s";\n</script>' % url)
         else:
             return HttpResponseRedirect(url)
-
-    def url_for(self, path):
-        """
-        Expand the path into a full URL, depending on whether we're in a canvas
-        page or not.
-        
-        """
-        return '%s%s' % (settings.SITE_URL, path)
 
     def _oauth2_process_params(self, request):
         """
@@ -144,6 +136,7 @@ class Facebook(facebook.Facebook):
             logging.debug('Exchanging oauth code for an access_token')
             # We've got a code from an authorisation, so convert it to a access_token
             self.oauth2_access_token(request.GET['code'], next=redirect_uri)
+            return self.redirect(self.get_app_url())
         elif 'signed_request' in request.REQUEST:
             logging.debug('Loading oauth data from "signed_request"')
             self.oauth2_load_session(
@@ -444,7 +437,9 @@ class FacebookMiddleware(object):
                 callback_path=callback_path, internal=self.internal,
                 proxy=self.proxy, app_id=self.app_id, oauth2=self.oauth2)
         if self.oauth2:
-            request.facebook.oauth2_process_request(request)
+            response = request.facebook.oauth2_process_request(request)
+            if response:
+                return response
         if not self.internal:
             if 'fb_sig_session_key' in request.GET and ('fb_sig_user' in request.GET or 'fb_sig_canvas_user' in request.GET):
                 request.facebook.session_key = request.session['facebook_session_key'] = request.GET['fb_sig_session_key']
