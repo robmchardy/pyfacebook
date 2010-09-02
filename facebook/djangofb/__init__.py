@@ -26,15 +26,12 @@ class Facebook(facebook.Facebook):
         canvas page, writes a <fb:redirect> instead to achieve the same effect.
 
         """
-        if self.in_canvas:
-            return HttpResponse('<fb:redirect url="%s" />' % (url,))
+        parts = urlparse.urlparse(url)
+        netloc = parts.netloc.split(':')[0]
+        if netloc.endswith('.facebook.com') and netloc != 'graph.facebook.com':
+            return HttpResponse('<script type="text/javascript">\ntop.location.href = "%s";\n</script>' % url)
         else:
-            parts = urlparse.urlparse(url)
-            netloc = parts.netloc.split(':')[0]
-            if netloc.endswith('.facebook.com') and netloc != 'graph.facebook.com':
-                return HttpResponse('<script type="text/javascript">\ntop.location.href = "%s";\n</script>' % url)
-            else:
-                return HttpResponseRedirect(url)
+            return HttpResponseRedirect(url)
 
     def url_for(self, path):
         """
@@ -42,17 +39,13 @@ class Facebook(facebook.Facebook):
         page or not.
         
         """
-        if self.in_canvas:
-            return self.get_app_url(path[1:])
-        else:
-            return '%s%s' % (settings.SITE_URL, path)
+        return '%s%s' % (settings.SITE_URL, path)
 
     def _oauth2_process_params(self, request):
         """
         Check a few key parameters for oauth methods
         
         """
-        self.in_canvas = (request.REQUEST.get('fb_sig_in_canvas') == '1')
         self.added = (request.REQUEST.get('fb_sig_added') == '1')
         # If app_id is not set explicitly, pick it up from the params
         if not self.app_id:
@@ -193,7 +186,7 @@ def _check_middleware(request):
     return fb
 
 
-def require_oauth(redirect_path=None, keep_state=True, in_canvas=True,
+def require_oauth(redirect_path=None, keep_state=True,
                   required_permissions=None, check_permissions=None, force_check=True):
     """
     Decorator for Django views that requires the user to be OAuth 2.0'd.
@@ -225,9 +218,6 @@ def require_oauth(redirect_path=None, keep_state=True, in_canvas=True,
                     has_permissions = True
     
                 if not valid_token or not has_permissions:
-                    if in_canvas:
-                        fb.in_canvas = in_canvas
-
                     return _redirect_login(request, fb, redirect_path,
                         keep_state, required_permissions)
     
@@ -279,7 +269,7 @@ def _redirect_login(request, fb, redirect_path, keep_state, required_permissions
     return fb.redirect(url) 
 
 
-def process_oauth(restore_state=True, in_canvas=True):
+def process_oauth(restore_state=True):
     """
     Decorator for Django views that processes the user's code and converts it
     into an access_token.
@@ -295,9 +285,6 @@ def process_oauth(restore_state=True, in_canvas=True):
             # permissions=newview.permissions
 
             fb = _check_middleware(request)
-
-            if in_canvas:
-                fb.in_canvas = in_canvas
 
             # Work out what the original redirect_uri value was
             redirect_uri = fb.url_for(_strip_code(request.get_full_path()))

@@ -151,9 +151,6 @@ class Facebook(object):
     facebook_secure_url
         The url to use for secure Facebook requests.
 
-    in_canvas
-        True if the current request is for a canvas page.
-
     in_iframe
         True if the current request is for an HTML page to embed in Facebook inside an iframe.
 
@@ -238,7 +235,6 @@ class Facebook(object):
         self.generate_session_secret = generate_session_secret
         self.uid = None
         self.page_id = None
-        self.in_canvas = False
         self.in_iframe = False
         self.is_session_from_cookie = False
         self.in_profile_tab = False
@@ -593,8 +589,6 @@ class Facebook(object):
         (either log the user in or have him add the application).
 
         """
-        self.in_canvas = (request.POST.get('fb_sig_in_canvas') == '1')
-
         if not 'auth_token' in request.GET and self.session_key and (self.uid or self.page_id):
             return True
 
@@ -651,9 +645,6 @@ class Facebook(object):
 
         if not params:
             return False
-
-        if 'in_canvas' in params and params.get('in_canvas') == '1':
-            self.in_canvas = True
 
         if 'in_iframe' in params and params.get('in_iframe') == '1':
             self.in_iframe = True

@@ -95,17 +95,6 @@ class FacebookRequestHandler(RequestHandler):
         if not (require_app or require_login) and need_session:
             self.facebook.auth.getSession()
 
-    def redirect(self, url, **kwargs):
-        """
-        For Facebook canvas pages we should use <fb:redirect /> instead of
-        a normal redirect.
-        """
-        if self.facebook.in_canvas:
-            self.response.clear()
-            self.response.out.write('<fb:redirect url="%s" />' % (url, ))
-        else:
-            super(FacebookRequestHandler, self).redirect(url, **kwargs)
-
     def add_user_message(self, kind, msg, detail='', time=15 * 60):
         """
         Add a message to the current user to memcache.
@@ -161,10 +150,6 @@ class FacebookCanvasHandler(FacebookRequestHandler):
         """
         if self.redirecting: return
 
-        if not self.facebook.in_canvas:
-            self.error(404)
-            return
-
-        self.canvas(*args, **kwargs)
+        self.error(404)
 
 # vim: ai et ts=4 sts=4 sw=4
