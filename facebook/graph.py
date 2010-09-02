@@ -108,7 +108,7 @@ class Graph(object):
         request = Request(url)
         response = self._read(request)
         values = urlparse.parse_qs(response)
-        return values['access_token']
+        return values['access_token'][0]
 
 def subscription_callback(token):
     '''
