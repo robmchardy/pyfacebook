@@ -76,7 +76,7 @@ class Facebook(facebook.Facebook):
                     self.validate_oauth_cookie_signature(request.COOKIES))
 
         # See if we've got this user's access_token in our session
-        if 'facebook' in request.session:
+        if 'oauth2_token' in request.session.get('facebook', {}):
             self.oauth2_token = request.session['facebook']['oauth2_token']
             self.oauth2_token_expires = request.session['facebook']['oauth2_token_expires']
             self.session_key = request.session['facebook']['session_key']
@@ -87,7 +87,8 @@ class Facebook(facebook.Facebook):
                     # Got a token, and it's valid
                     valid_token = True
                 else:
-                    del request.session['facebook']
+                    del request.session['facebook']['oauth2_token']
+                    del request.session['facebook']['oauth2_token_expires']
 
         return valid_token
 
@@ -144,7 +145,10 @@ class Facebook(facebook.Facebook):
 
             self.oauth2_access_token(request.GET['code'], next=redirect_uri)
 
-            request.session['facebook'] = request.session.get('facebook', {})
+            request.session['facebook'] = request.session.get('facebook', {
+                'session_key': None,
+                'uid': None
+            })
             request.session['facebook']['oauth2_token'] = self.oauth2_token
             request.session['facebook']['oauth2_token_expires'] = self.oauth2_token_expires
 
@@ -217,7 +221,7 @@ def require_oauth(redirect_path=None, required_permissions=None,
                 # Invalid token (I think this can happen if the user logs out)
                 # Unfortunately we don't find this out until we use the api 
                 if e.code == 190:
-                    request.session['facebook'] = {}
+                    del request.session['facebook']['oauth2_token']
                     url = fb.get_login_url(next=redirect_uri,
                             required_permissions=required_permissions)
                     return fb.redirect(url) 
