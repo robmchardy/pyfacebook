@@ -53,10 +53,12 @@ class Facebook(facebook.Facebook):
 
     def oauth2_load_session(self, data):
         if data and 'access_token' in data:
-            request.session['oauth2_token'] = data['access_token']
-            request.session['oauth2_token_expires'] = data['expires']
-            self.session_key = data['session_key']
-            self.uid = data['uid']
+            request.session['facebook'] = {
+                'oauth2_token': data['access_token'],
+                'oauth2_token_expires': data['expires'],
+                'session_key': data['session_key'],
+                'uid': data['uid'],
+            }
 
     def oauth2_check_session(self, request):
         """
@@ -79,17 +81,18 @@ class Facebook(facebook.Facebook):
                     self.validate_oauth_cookie_signature(request.COOKIES))
 
         # See if we've got this user's access_token in our session
-        if 'oauth2_token' in request.session:
-            self.oauth2_token = request.session['oauth2_token']
-            self.oauth2_token_expires = request.session['oauth2_token_expires']
+        if 'facebook' in request.session:
+            self.oauth2_token = request.session['facebook']['oauth2_token']
+            self.oauth2_token_expires = request.session['facebook']['oauth2_token_expires']
+            self.session_key = request.session['facebook']['session_key']
+            self.uid = request.session['facebook']['uid']
 
-        if self.oauth2_token_expires:
-            if self.oauth2_token_expires > time.time():
-                # Got a token, and it's valid
-                valid_token = True
-            else:
-                del request.session['oauth2_token']
-                del request.session['oauth2_token_expires']
+            if self.oauth2_token_expires:
+                if self.oauth2_token_expires > time.time():
+                    # Got a token, and it's valid
+                    valid_token = True
+                else:
+                    del request.session['facebook']
 
         return valid_token
 
