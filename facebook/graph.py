@@ -109,6 +109,26 @@ class Graph(object):
         values = urlparse.parse_qs(response)
         return values['access_token'][0]
 
+    def get_user_access_token(self, session_key):
+        query = urllib.urlencode({
+            'client_id': self._facebook.app_id,
+            'client_secret': self._facebook.secret_key,
+            'type': 'client_cred',
+            'sessions': session_key,
+        })
+        url = urlparse.urlunparse((
+            self.FACEBOOK_GRAPH_SCHEME,
+            self.FACEBOOK_GRAPH_BASE,
+            '/oauth/exchange_sessions',
+            '',
+            query,
+            '',
+        ))
+        request = Request(url)
+        response = self._read(request)
+        values = urlparse.parse_qs(response)
+        return values['access_token'][0]
+
 def subscription_callback(token):
     '''
     Use this to wrap views that are supposed to be used as real-time
