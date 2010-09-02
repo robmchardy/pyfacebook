@@ -1,6 +1,8 @@
+import datetime
 import re
 import time
-import datetime
+import urlparse
+
 import facebook
 
 from django.http import HttpResponse, HttpResponseRedirect
@@ -26,10 +28,13 @@ class Facebook(facebook.Facebook):
         """
         if self.in_canvas:
             return HttpResponse('<fb:redirect url="%s" />' % (url,))
-        elif re.search("^https?:\/\/([^\/]*\.)?facebook\.com(:\d+)?", url.lower()):
-            return HttpResponse('<script type="text/javascript">\ntop.location.href = "%s";\n</script>' % url)
         else:
-            return HttpResponseRedirect(url)
+            parts = urlparse.urlparse(url)
+            netloc = parts.netloc.split(':')[0]
+            if netloc.endswith('.facebook.com') and netloc != 'graph.facebook.com':
+                return HttpResponse('<script type="text/javascript">\ntop.location.href = "%s";\n</script>' % url)
+            else:
+                return HttpResponseRedirect(url)
 
     def url_for(self, path):
         """
