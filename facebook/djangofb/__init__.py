@@ -136,6 +136,9 @@ class Facebook(facebook.Facebook):
         Process a request handling oauth data.
         """
         redirect_uri = self.get_callback_path(request.path)
+        logging.debug('Restoring oauth data from a saved session')
+        if 'facebook' in request.session:
+            self.oauth2_load_session(request.session['facebook'])
         if 'code' in request.GET:
             logging.debug('Exchanging oauth code for an access_token')
             # We've got a code from an authorisation, so convert it to a access_token
@@ -153,10 +156,6 @@ class Facebook(facebook.Facebook):
             logging.debug('Loading oauth data from cookies')
             self.oauth2_load_session(
                     self.validate_oauth_cookie_signature(request.COOKIES))
-        if not self.oauth2_token:
-            logging.debug('Restoring oauth data from a saved session')
-            if 'facebook' in request.session:
-                self.oauth2_load_session(request.session['facebook'])
 
     def oauth2_process_response(self, request, response):
         logging.debug('Saving oauth data to session')
@@ -207,7 +206,7 @@ def require_oauth(redirect_path=None, required_permissions=None,
                 if not valid_token or not has_permissions:
                     url = fb.get_login_url(next=redirect_uri,
                             required_permissions=required_permissions)
-                    return fb.redirect(url) 
+                    return fb.redirect(url)
                 return view(request, *args, **kwargs)
             except facebook.FacebookError as e:
                 # Invalid token (I think this can happen if the user logs out)
@@ -216,8 +215,8 @@ def require_oauth(redirect_path=None, required_permissions=None,
                     del request.session['facebook']
                     url = fb.get_login_url(next=redirect_uri,
                             required_permissions=required_permissions)
-                    return fb.redirect(url) 
-        # newview.permissions = permissions        
+                    return fb.redirect(url)
+        # newview.permissions = permissions
         return newview
     return decorator
 
