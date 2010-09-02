@@ -81,7 +81,7 @@ class Facebook(facebook.Facebook):
 
         return valid_token
 
-    def callback_path(path):
+    def get_callback_path(path):
         """
         Resolve the path to use for the redirect_uri for authorization
         """
@@ -135,7 +135,7 @@ class Facebook(facebook.Facebook):
         """
         Process a request handling oauth data.
         """
-        redirect_uri = self.callback_path(request.path)
+        redirect_uri = self.get_callback_path(request.path)
         if 'code' in request.GET:
             logging.debug('Exchanging oauth code for an access_token')
             # We've got a code from an authorisation, so convert it to a access_token
@@ -196,7 +196,7 @@ def require_oauth(redirect_path=None, required_permissions=None,
 
             try:
                 fb = _check_middleware(request)
-                redirect_uri = self.callback_path(request.path)
+                redirect_uri = self.get_callback_path(request.path)
                 valid_token = fb.oauth2_check_session(request)
                 if required_permissions:
                     has_permissions = fb.oauth2_check_permissions(
