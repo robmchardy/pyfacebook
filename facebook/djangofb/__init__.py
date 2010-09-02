@@ -51,7 +51,7 @@ class Facebook(facebook.Facebook):
         if not self.uid:
             self.uid = request.REQUEST.get('fb_sig_user')
 
-    def oauth2_load_session(self, data):
+    def oauth2_load_session(self, request, data):
         if data and 'access_token' in data:
             request.session['facebook'] = {
                 'oauth2_token': data['access_token'],
@@ -67,15 +67,15 @@ class Facebook(facebook.Facebook):
         """
         valid_token = False
 
-        if 'session' in request.REQUEST:
-            self.oauth2_load_session(
-                    self.validate_oauth_session(request.REQUEST['session']))
         if 'signed_request' in request.REQUEST:
-            self.oauth2_load_session(
+            self.oauth2_load_session(request,
                     self.validate_oauth_signed_request(request.REQUEST['signed_request']))
+        elif 'session' in request.REQUEST:
+            self.oauth2_load_session(request,
+                    self.validate_oauth_session(request.REQUEST['session']))
         elif request.COOKIES:
             # Look out for an access_token in our cookies from the JS SDK FB.init
-            self.oauth2_load_session(
+            self.oauth2_load_session(request,
                     self.validate_oauth_cookie_signature(request.COOKIES))
 
         # See if we've got this user's access_token in our session
