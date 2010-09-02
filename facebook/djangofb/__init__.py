@@ -156,7 +156,7 @@ class Facebook(facebook.Facebook):
         if not self.oauth2_token:
             logging.debug('Restoring oauth data from a saved session')
             if 'facebook' in request.session:
-                self.oauth2_load_session(self.session['facebook'])
+                self.oauth2_load_session(request.session['facebook'])
 
     def oauth2_process_response(self, request, response):
         logging.debug('Saving oauth data to session')
