@@ -53,6 +53,13 @@ class Facebook(facebook.Facebook):
         if not self.uid:
             self.uid = request.REQUEST.get('fb_sig_user')
 
+    def oauth2_load_session(self, data):
+        if 'access_token' in data:
+            request.session['oauth2_token'] = data['access_token']
+            request.session['oauth2_token_expires'] = data['expires']
+            self.session_key = data['session_key']
+            self.uid = data['uid']
+
     def oauth2_check_session(self, request):
         """
         Check to see if we have an access_token in our session
@@ -60,43 +67,31 @@ class Facebook(facebook.Facebook):
         """
         valid_token = False
 
-        if 'oauth2_token' in request.session:
-            if request.session['oauth2_token_expires'] > time.time():
-                return True
-
-        # See if they're in the request
         if 'session' in request.POST:
-            values = self.validate_oauth_session(request.POST['session'])
-
-        # Might be in the query string (e.g. from iframe)
+            # See if they're in the request
+            self.oauth2_load_session(
+                    self.validate_oauth_session(request.POST['session']))
         elif 'session' in request.GET:
-            values = self.validate_oauth_session(request.GET['session'])
-
-        # Look out for an access_token in our cookies from the JS SDK FB.init
+            # Might be in the query string (e.g. from iframe)
+            self.oauth2_load_session(
+                    self.validate_oauth_session(request.GET['session']))
         elif request.COOKIES:
-            values = self.validate_oauth_cookie_signature(request.COOKIES)
+            # Look out for an access_token in our cookies from the JS SDK FB.init
+            self.oauth2_load_session(
+                    self.validate_oauth_cookie_signature(request.COOKIES))
 
-        if values and 'access_token' in values:
-            request.session['oauth2_token'] = values['access_token']
-            request.session['oauth2_token_expires'] = values['expires']
-            self.session_key = values['session_key']
-            self.uid = values['uid']
-            self.added = True
+        # See if we've got this user's access_token in our session
+        if 'oauth2_token' in request.session:
+            self.oauth2_token = request.session['oauth2_token']
+            self.oauth2_token_expires = request.session['oauth2_token_expires']
 
-        # If we've been accepted by the user
-        if self.added:
-            # See if we've got this user's access_token in our session
-            if 'oauth2_token' in request.session:
-                self.oauth2_token = request.session['oauth2_token']
-                self.oauth2_token_expires = request.session['oauth2_token_expires']
-
-            if self.oauth2_token_expires:
-                if self.oauth2_token_expires > time.time():
-                    # Got a token, and it's valid
-                    valid_token = True
-                else:
-                    del request.session['oauth2_token']
-                    del request.session['oauth2_token_expires']
+        if self.oauth2_token_expires:
+            if self.oauth2_token_expires > time.time():
+                # Got a token, and it's valid
+                valid_token = True
+            else:
+                del request.session['oauth2_token']
+                del request.session['oauth2_token_expires']
 
         return valid_token
 
