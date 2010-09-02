@@ -47,7 +47,7 @@ class Facebook(facebook.Facebook):
 
     def oauth2_load_session(self, data):
         if data and 'access_token' in data:
-            self.oauth2_token data['access_token']
+            self.oauth2_token = data['access_token']
             self.oauth2_token_expires = data['expires']
             self.session_key = data['session_key']
             self.uid = data['uid']
@@ -408,7 +408,6 @@ else:
             return decorator.new_wrapper(newdecorator, original)
         return decorator.new_wrapper(updated, f)
     require_oauth = updater(require_oauth)
-    process_oauth = updater(process_oauth)
     require_login = updater(require_login)
     require_add = updater(require_add)
     on_install = updater(on_install)
