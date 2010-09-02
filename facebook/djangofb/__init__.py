@@ -81,7 +81,7 @@ class Facebook(facebook.Facebook):
 
         return valid_token
 
-    def get_callback_path(path):
+    def get_callback_path(self, path):
         """
         Resolve the path to use for the redirect_uri for authorization
         """
