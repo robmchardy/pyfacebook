@@ -719,7 +719,7 @@ class Facebook(object):
             return None
         if data['algorithm'] != 'HMAC-SHA256':
             return None
-        digest = hmac.new('af423fb8ad0386ea77668abe4da32d9e', payload, hashlib.sha256).digest()
+        digest = hmac.new(settings.SECRET_KEY, payload, hashlib.sha256).digest()
         if digest != sig:
             return None
         return {
