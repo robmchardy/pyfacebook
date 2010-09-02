@@ -723,9 +723,9 @@ class Facebook(object):
         if str(digest) != sig:
             return None
         return {
-            'access_token': data['oauth_token'],
-            'expires': data['expires'] or None,
-            'uid': data['user_id'],
+            'access_token': data.get('oauth_token', None),
+            'expires': data.get('expires', None) or None,
+            'uid': data.get('user_id', None),
             'session_key': None,
         }
 
