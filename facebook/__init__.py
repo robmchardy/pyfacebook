@@ -724,7 +724,7 @@ class Facebook(object):
             return None
         return {
             'access_token': data['oauth_token'],
-            'explires': data['expires'] or None,
+            'expires': data['expires'] or None,
             'uid': data['user_id'],
             'session_key': None,
         }
