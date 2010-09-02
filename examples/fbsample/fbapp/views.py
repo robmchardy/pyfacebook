@@ -7,6 +7,7 @@ from django.views.generic.simple import direct_to_template
 
 # Import the Django helpers
 import facebook.djangofb as facebook
+from facebook import graph
 
 # The User model defined in models.py
 from models import User
@@ -35,3 +36,10 @@ def canvas(request):
 @facebook.require_login()
 def ajax(request):
     return HttpResponse('hello world')
+
+#This is callback function called by facebook during subscription process
+#(look into management/commands/setup_facebook.py)
+VERFIY_TOKEN = 'testingcallback'
+@graph.subscription_callback(VERFIY_TOKEN)
+def subscription_callback(request, data):
+    pass
