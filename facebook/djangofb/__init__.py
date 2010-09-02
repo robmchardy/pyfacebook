@@ -144,7 +144,7 @@ class Facebook(facebook.Facebook):
 
             self.oauth2_access_token(request.GET['code'], next=redirect_uri)
 
-            request.session['facebook'] = request.session['facebook'] or {}
+            request.session['facebook'] = request.session.get('facebook', {})
             request.session['facebook']['oauth2_token'] = self.oauth2_token
             request.session['facebook']['oauth2_token_expires'] = self.oauth2_token_expires
 
