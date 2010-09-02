@@ -99,7 +99,7 @@ class Graph(object):
         url = urlparse.urlunparse((
             self.FACEBOOK_GRAPH_SCHEME,
             self.FACEBOOK_GRAPH_BASE,
-            '/oauth/access_token'),
+            '/oauth/access_token',
             '',
             query,
             '',
