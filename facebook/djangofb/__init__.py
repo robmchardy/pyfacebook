@@ -186,8 +186,8 @@ def _check_middleware(request):
     return fb
 
 
-def require_oauth(redirect_path=None, keep_state=True,
-                  required_permissions=None, check_permissions=None, force_check=True):
+def require_oauth(redirect_path=None, required_permissions=None,
+        check_permissions=None, force_check=True):
     """
     Decorator for Django views that requires the user to be OAuth 2.0'd.
     The FacebookMiddleware must be installed.
@@ -208,6 +208,10 @@ def require_oauth(redirect_path=None, keep_state=True,
             try:
                 fb = _check_middleware(request)
     
+                if 'code' in request.GET:
+                    redirect_uri = fb.url_for(_redirect_path(redirect_path, fb, request.path))
+                    fb.oauth2_process_code(request, redirect_uri)
+
                 valid_token = fb.oauth2_check_session(request)
     
                 if required_permissions:
@@ -216,10 +220,10 @@ def require_oauth(redirect_path=None, keep_state=True,
                         valid_token, force_check)
                 else:
                     has_permissions = True
-    
+
                 if not valid_token or not has_permissions:
                     return _redirect_login(request, fb, redirect_path,
-                        keep_state, required_permissions)
+                            required_permissions)
     
                 return view(request, *args, **kwargs)
             except facebook.FacebookError as e:
@@ -229,7 +233,7 @@ def require_oauth(redirect_path=None, keep_state=True,
                     del request.session['oauth2_token']
                     del request.session['oauth2_token_expires']
                     return _redirect_login(request, fb, redirect_path,
-                        keep_state, required_permissions)
+                            required_permissions)
         # newview.permissions = permissions        
         return newview
     return decorator
@@ -248,62 +252,17 @@ def _redirect_path(redirect_path, fb, path):
         redirect_path = path
     return redirect_path
 
-def _redirect_login(request, fb, redirect_path, keep_state, required_permissions):
+def _redirect_login(request, fb, redirect_path, required_permissions):
     """
     Fully resolve the redirect path for an oauth login and add in any state
     info required to bring us back to the correct place afterwards
     """
     redirect_uri = fb.url_for(_redirect_path(redirect_path, fb, request.path))
 
-    if keep_state:
-        if callable(keep_state):
-            state = keep_state(request)
-        else:
-            state = request.get_full_path()
-        # passing state directly to facebook oauth endpoint doesn't work
-        redirect_uri += '?state=%s' % urlquote(state)
-
     url = fb.get_login_url(next=redirect_uri,
             required_permissions=required_permissions)
 
     return fb.redirect(url) 
-
-
-def process_oauth(restore_state=True):
-    """
-    Decorator for Django views that processes the user's code and converts it
-    into an access_token.
-    The FacebookMiddleware must be installed.
-
-    Standard usage:
-        @process_oauth()
-        def some_view(request):
-            ...
-    """
-    def decorator(view):
-        def newview(request, *args, **kwargs):
-            # permissions=newview.permissions
-
-            fb = _check_middleware(request)
-
-            # Work out what the original redirect_uri value was
-            redirect_uri = fb.url_for(_strip_code(request.get_full_path()))
-            if restore_state and 'state' in request.GET:
-                redirect_uri += '?state=%s' % urlquote(request.GET['state'])
-
-            if fb.oauth2_process_code(request, redirect_uri):
-                if restore_state:
-                    state = request.GET['state']
-                    if callable(restore_state):
-                        state = restore_state(state)
-                    else:
-                        state = fb.url_for(state)
-                    return fb.redirect(state)
-
-            return view(request, *args, **kwargs)
-        # newview.permissions = permissions        
-        return newview
-    return decorator
 
 
 def _strip_code(path):
