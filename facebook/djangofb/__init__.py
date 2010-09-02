@@ -196,7 +196,7 @@ def require_oauth(redirect_path=None, required_permissions=None,
 
             try:
                 fb = _check_middleware(request)
-                redirect_uri = self.get_callback_path(request.path)
+                redirect_uri = fb.get_callback_path(request.path)
                 valid_token = fb.oauth2_check_session(request)
                 if required_permissions:
                     has_permissions = fb.oauth2_check_permissions(
