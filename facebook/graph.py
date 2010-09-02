@@ -1,4 +1,3 @@
-import logging
 import urllib
 import urllib2
 import urlparse
@@ -78,9 +77,9 @@ class Graph(object):
     def get(self, access_token=None):
         return self._request('GET', data=None, access_token=access_token)
 
-    def post(self, data, access_token=None, content_type='application/json'):
-        data = simplejson.dumps(data)
-        return self._request('POST', data, access_token=access_token, content_type=content_type)
+    def post(self, data, access_token=None):
+        data = urllib.urlencode(data)
+        return self._request('POST', data, access_token=access_token)
 
     def delete(self, access_token=None):
         return self._request('DELETE', data=None, access_token=access_token)
@@ -121,7 +120,6 @@ def subscription_callback(token):
     '''
     def inner_decorator(view):
         def wrapped(request, *args, **kwargs):
-            logging.debug("CALLBACK -> %s, %s" % (request.method, dict(request.REQUEST)))
             if request.method == 'GET':
                 hub_mode = request.GET.get('hub.mode', None)
                 hub_challenge = request.GET.get('hub.challenge', None)
