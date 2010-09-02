@@ -44,19 +44,21 @@ http://undefined.org/python/#simplejson to download it, or do
 apt-get install python-simplejson on a Debian-like system.
 """
 
+import base64
+import binascii
+import hmac
+import struct
 import sys
 import time
-import struct
 import urllib
 import urllib2
-import hmac
+import urlparse
 try:
     import hashlib
 except ImportError:
     import md5 as hashlib
+
 from django.conf import settings
-import binascii
-import urlparse
 
 from . import bindings, graph, urlread
 
@@ -702,6 +704,30 @@ class Facebook(object):
         if hash == sig:
             return session
         return None
+
+    def validate_oauth_signed_request(self, signed_request):
+        sig, payload = signed_request.split('.')[:2]
+        def pad(str):
+            if len(str) % 4:
+                return str + '=' * (4 - len(str) % 4)
+            return str
+        try:
+            sig = base64.urlsafe_b64decode(pad(sig))
+            data = base64.urlsafe_b64decode(pad(payload))
+            data = simplejson.loads(data)
+        except:
+            return None
+        if data['algorithm'] != 'HMAC-SHA256':
+            return None
+        digest = hmac.new('af423fb8ad0386ea77668abe4da32d9e', payload, hashlib.sha256).digest()
+        if digest != sig:
+            return None
+        return {
+            'access_token': data['oauth2_token'],
+            'explires': data['oauth2_token_expires'],
+            'uid': data['user_id'],
+            'session_key': None,
+        }
 
     def validate_signature(self, post, prefix='fb_sig', timeout=None):
         """

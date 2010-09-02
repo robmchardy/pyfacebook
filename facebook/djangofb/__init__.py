@@ -70,6 +70,9 @@ class Facebook(facebook.Facebook):
         if 'session' in request.REQUEST:
             self.oauth2_load_session(
                     self.validate_oauth_session(request.REQUEST['session']))
+        if 'signed_request' in request.REQUEST:
+            self.oauth2_load_session(
+                    self.validate_oauth_signed_request(request.REQUEST['signed_request']))
         elif request.COOKIES:
             # Look out for an access_token in our cookies from the JS SDK FB.init
             self.oauth2_load_session(
