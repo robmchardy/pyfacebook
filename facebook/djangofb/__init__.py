@@ -153,7 +153,7 @@ class Facebook(facebook.Facebook):
             logging.debug('Loading oauth data from cookies')
             self.oauth2_load_session(
                     self.validate_oauth_cookie_signature(request.COOKIES))
-        else:
+        if not self.oauth2_token:
             logging.debug('Restoring oauth data from a saved session')
             if 'facebook' in request.session:
                 self.oauth2_load_session(self.session['facebook'])
