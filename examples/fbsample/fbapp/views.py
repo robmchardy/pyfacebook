@@ -39,7 +39,6 @@ def ajax(request):
 
 #This is callback function called by facebook during subscription process
 #(look into management/commands/setup_facebook.py)
-VERFIY_TOKEN = 'testingcallback'
-@graph.subscription_callback(VERFIY_TOKEN)
+@graph.subscription_callback('testingcallback')
 def subscription_callback(request, data):
     pass
