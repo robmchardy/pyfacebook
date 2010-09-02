@@ -10,14 +10,7 @@ from django.utils.http import urlquote
 from django.core.exceptions import ImproperlyConfigured
 from django.conf import settings
 
-try:
-    from threading import local
-except ImportError:
-    from django.utils._threading_local import local
-
-__all__ = ['Facebook', 'FacebookMiddleware', 'get_facebook_client', 'require_login', 'require_add', 'on_install']
-
-_thread_locals = local()
+__all__ = ['Facebook', 'FacebookMiddleware', 'require_login', 'require_add', 'on_install']
 
 class Facebook(facebook.Facebook):
     def redirect(self, url):
@@ -157,18 +150,6 @@ class Facebook(facebook.Facebook):
         # else: 'error_reason' in request.GET
         
         return False
-
-
-def get_facebook_client():
-    """
-    Get the current Facebook object for the calling thread.
-
-    """
-    try:
-        return _thread_locals.facebook
-    except AttributeError:
-        raise ImproperlyConfigured('Make sure you have the Facebook middleware installed.')
-
 
 
 def _check_middleware(request):
@@ -437,8 +418,6 @@ else:
 class FacebookMiddleware(object):
     """
     Middleware that attaches a Facebook object to every incoming request.
-    The Facebook object created can also be accessed from models for the
-    current thread by using get_facebook_client().
 
     callback_path can be a string or a callable.  Using a callable lets us
     pass in something like lambda reverse('our_canvas_view') so we can follow
@@ -464,7 +443,7 @@ class FacebookMiddleware(object):
         callback_path = self.callback_path
         if callable(callback_path):
             callback_path = callback_path()
-        _thread_locals.facebook = request.facebook = Facebook(self.api_key,
+        request.facebook = Facebook(self.api_key,
                 self.secret_key, app_name=self.app_name,
                 callback_path=callback_path, internal=self.internal,
                 proxy=self.proxy, app_id=self.app_id, oauth2=self.oauth2)
