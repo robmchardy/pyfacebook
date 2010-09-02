@@ -1,3 +1,4 @@
+import logging
 import urllib
 import urllib2
 import urlparse
@@ -96,6 +97,7 @@ def subscription_callback(token):
     '''
     def inner_decorator(view):
         def wrapped(request, *args, **kwargs):
+            logging.debug("CALLBACK -> %s, %s" % (request.method, dict(request.REQUEST)))
             if request.method == 'GET':
                 hub_mode = request.GET.get('hub.mode', None)
                 hub_challenge = request.GET.get('hub.challenge', None)
