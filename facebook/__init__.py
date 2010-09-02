@@ -151,14 +151,8 @@ class Facebook(object):
     facebook_secure_url
         The url to use for secure Facebook requests.
 
-    in_iframe
-        True if the current request is for an HTML page to embed in Facebook inside an iframe.
-
     is_session_from_cookie
         True if the current request session comes from a session cookie.
-
-    in_profile_tab
-        True if the current request is for a user's tab for your application.
 
     internal
         True if this Facebook object is for an internal application (one that can be added on Facebook)
@@ -235,9 +229,7 @@ class Facebook(object):
         self.generate_session_secret = generate_session_secret
         self.uid = None
         self.page_id = None
-        self.in_iframe = False
         self.is_session_from_cookie = False
-        self.in_profile_tab = False
         self.added = False
         self.app_name = app_name
         self.callback_path = callback_path
@@ -645,12 +637,6 @@ class Facebook(object):
 
         if not params:
             return False
-
-        if 'in_iframe' in params and params.get('in_iframe') == '1':
-            self.in_iframe = True
-
-        if 'in_profile_tab' in params and params.get('in_profile_tab') == '1':
-            self.in_profile_tab = True
 
         if 'added' in params and params.get('added') == '1':
             self.added = True
