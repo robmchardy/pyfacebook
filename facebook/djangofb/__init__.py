@@ -15,7 +15,7 @@ try:
 except ImportError:
     from django.utils._threading_local import local
 
-__all__ = ['Facebook', 'FacebookMiddleware', 'get_facebook_client', 'require_login', 'require_add']
+__all__ = ['Facebook', 'FacebookMiddleware', 'get_facebook_client', 'require_login', 'require_add', 'on_install']
 
 _thread_locals = local()
 
@@ -54,7 +54,7 @@ class Facebook(facebook.Facebook):
             self.uid = request.REQUEST.get('fb_sig_user')
 
     def oauth2_load_session(self, data):
-        if 'access_token' in data:
+        if data and 'access_token' in data:
             request.session['oauth2_token'] = data['access_token']
             request.session['oauth2_token_expires'] = data['expires']
             self.session_key = data['session_key']
@@ -203,10 +203,8 @@ def require_oauth(redirect_path=None, required_permissions=None,
             try:
                 fb = _check_middleware(request)
                 redirect_uri = fb.url_for(_redirect_path(redirect_path, fb, request.path))
-                if fb.oauth2_process_code(request, redirect_uri):
-                    valid_token = True
-                else:
-                    valid_token = fb.oauth2_check_session(request)
+                fb.oauth2_process_code(request, redirect_uri)
+                valid_token = fb.oauth2_check_session(request)
                 if required_permissions:
                     has_permissions = fb.oauth2_check_permissions(
                         request, required_permissions, check_permissions,
@@ -333,7 +331,7 @@ def require_login(next=None, internal=None, required_permissions=None):
     return decorator
 
 
-def require_add(next=None, internal=None, on_install=None):
+def require_add(next=None, internal=None):
     """
     Decorator for Django views that requires application installation.
     The FacebookMiddleware must be installed.
@@ -350,13 +348,6 @@ def require_add(next=None, internal=None, on_install=None):
         settings.callback_path and settings.app_name are checked to redirect to the same page after logging
         in. (This is the default behavior.)
         @require_add(next=some_callable)
-        def some_view(request):
-            ...
-
-    Post-install processing:
-        Set the on_install parameter to a callable in order to handle special post-install processing.
-        The callable should take a request object as the parameter.
-        @require_add(on_install=some_callable)
         def some_view(request):
             ...
     """
@@ -393,15 +384,32 @@ def require_add(next=None, internal=None, on_install=None):
             if not fb.added:
                 return fb.redirect(fb.get_add_url(next=next))
 
-            if 'installed' in request.GET and callable(on_install):
-                on_install(request)
-
             if internal and request.method == 'GET' and fb.app_name:
                 return fb.redirect('%s%s' % (fb.get_app_url(), next))
 
             return view(request, *args, **kwargs)
         newview.next = next
         newview.internal = internal
+        return newview
+    return decorator
+
+def on_install(on_install=None):
+    """
+    Decorator for Django views that handles application installation.
+    The FacebookMiddleware must be installed.
+    
+    Post-install processing:
+        Set the on_install parameter to a callable in order to handle special post-install processing.
+        The callable should take a request object as the parameter.
+        @on_install(on_install=some_callable)
+        def some_view(request):
+            ...
+    """
+    def decorator(view):
+        def newview(request, *args, **kwargs):
+            if 'installed' in request.GET and callable(on_install):
+                on_install(request)
+            return view(request, *args, **kwargs)
         return newview
     return decorator
 
@@ -423,6 +431,7 @@ else:
     process_oauth = updater(process_oauth)
     require_login = updater(require_login)
     require_add = updater(require_add)
+    on_install = updater(on_install)
 
 class FacebookMiddleware(object):
     """
