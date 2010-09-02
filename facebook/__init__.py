@@ -706,7 +706,7 @@ class Facebook(object):
         return None
 
     def validate_oauth_signed_request(self, signed_request):
-        sig, payload = signed_request.split('.', 1)
+        sig, payload = map(str, signed_request.split('.', 1))
         def pad(string):
             if len(string) % 4:
                 return string + '=' * (4 - len(string) % 4)
@@ -720,11 +720,11 @@ class Facebook(object):
         if data['algorithm'] != 'HMAC-SHA256':
             return None
         digest = hmac.new(settings.SECRET_KEY, payload, hashlib.sha256).digest()
-        if digest != sig:
+        if str(digest) != sig:
             return None
         return {
-            'access_token': data['oauth2_token'],
-            'explires': data['oauth2_token_expires'],
+            'access_token': data['oauth_token'],
+            'explires': data['expires'] or None,
             'uid': data['user_id'],
             'session_key': None,
         }
