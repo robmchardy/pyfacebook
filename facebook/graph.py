@@ -126,8 +126,8 @@ class Graph(object):
         ))
         request = Request(url)
         response = self._read(request)
-        values = urlparse.parse_qs(response)
-        return values['access_token'][0]
+        values = simplejson.loads(response)
+        return values[0]['access_token']
 
 def subscription_callback(token):
     '''
