@@ -450,7 +450,7 @@ class Facebook(object):
 
         result = urlparse.parse_qs(response)
         self.oauth2_token = result['access_token'][0]
-        if result['expires']:
+        if 'expires' in result:
             self.oauth2_token_expires = time.time() + int(result['expires'][0])
 
     # URL helpers
