@@ -47,7 +47,7 @@ class Facebook(facebook.Facebook):
 
     def oauth2_load_session(self, data):
         if data and 'access_token' in data:
-            self.oauth2_token data['access_token'],
+            self.oauth2_token data['access_token']
             self.oauth2_token_expires = data['expires']
             self.session_key = data['session_key']
             self.uid = data['uid']
