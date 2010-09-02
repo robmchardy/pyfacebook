@@ -89,6 +89,9 @@ class Facebook(facebook.Facebook):
                     valid_token = True
                 else:
                     del request.session['facebook']
+            else:
+                # does not expire
+                valid_token = True
 
         return valid_token
 
