@@ -1,4 +1,5 @@
 import datetime
+import logging
 import re
 import time
 import urlparse
@@ -44,14 +45,20 @@ class Facebook(facebook.Facebook):
         if not self.uid:
             self.uid = request.REQUEST.get('fb_sig_user')
 
-    def oauth2_load_session(self, request, data):
+    def oauth2_load_session(self, data):
         if data and 'access_token' in data:
-            request.session['facebook'] = {
-                'oauth2_token': data['access_token'],
-                'oauth2_token_expires': data['expires'],
-            }
+            self.oauth2_token data['access_token'],
+            self.oauth2_token_expires = data['expires']
             self.session_key = data['session_key']
             self.uid = data['uid']
+
+    def oauth2_save_session(self):
+        return {
+            'access_token': self.oauth2_token,
+            'expires': self.oauth2_token_expires,
+            'session_key': self.session_key,
+            'uid': self.uid,
+        }
 
     def oauth2_check_session(self, request):
         """
@@ -60,22 +67,8 @@ class Facebook(facebook.Facebook):
         """
         valid_token = False
 
-        if 'signed_request' in request.REQUEST:
-            self.oauth2_load_session(request,
-                    self.validate_oauth_signed_request(request.REQUEST['signed_request']))
-        elif 'session' in request.REQUEST:
-            self.oauth2_load_session(request,
-                    self.validate_oauth_session(request.REQUEST['session']))
-        elif request.COOKIES:
-            # Look out for an access_token in our cookies from the JS SDK FB.init
-            self.oauth2_load_session(request,
-                    self.validate_oauth_cookie_signature(request.COOKIES))
-
         # See if we've got this user's access_token in our session
-        if 'facebook' in request.session:
-            self.oauth2_token = request.session['facebook']['oauth2_token']
-            self.oauth2_token_expires = request.session['facebook']['oauth2_token_expires']
-
+        if self.oauth2_token:
             if self.oauth2_token_expires:
                 if self.oauth2_token_expires > time.time():
                     # Got a token, and it's valid
@@ -87,6 +80,13 @@ class Facebook(facebook.Facebook):
                 valid_token = True
 
         return valid_token
+
+    def callback_path(path):
+        """
+        Resolve the path to use for the redirect_uri for authorization
+        """
+        return '%s%s' % (settings.SITE_URL, path)
+
 
     def oauth2_check_permissions(self, request, required_permissions,
                                  additional_permissions=None,
@@ -131,25 +131,36 @@ class Facebook(facebook.Facebook):
 
         return has_permissions
 
-    def oauth2_process_code(self, request, redirect_uri):
+    def oauth2_process_request(self, request):
         """
-        Convert the code into an access_token.
-        
+        Process a request handling oauth data.
         """
+        redirect_uri = self.callback_path(request.path)
         if 'code' in request.GET:
+            logging.debug('Exchanging oauth code for an access_token')
             # We've got a code from an authorisation, so convert it to a access_token
-
             self.oauth2_access_token(request.GET['code'], next=redirect_uri)
+        elif 'signed_request' in request.REQUEST:
+            logging.debug('Loading oauth data from "signed_request"')
+            self.oauth2_load_session(
+                    self.validate_oauth_signed_request(request.REQUEST['signed_request']))
+        elif 'session' in request.REQUEST:
+            logging.debug('Loading oauth data from "session"')
+            self.oauth2_load_session(
+                    self.validate_oauth_session(request.REQUEST['session']))
+        elif request.COOKIES:
+            # Look out for an access_token in our cookies from the JS SDK FB.init
+            logging.debug('Loading oauth data from cookies')
+            self.oauth2_load_session(
+                    self.validate_oauth_cookie_signature(request.COOKIES))
+        else:
+            logging.debug('Restoring oauth data from a saved session')
+            if 'facebook' in request.session:
+                self.oauth2_load_session(self.session['facebook'])
 
-            request.session['facebook'] = {
-                'oauth2_token': self.oauth2_token,
-                'oauth2_token_expires': self.oauth2_token_expires,
-            }
-
-            return True
-        # else: 'error_reason' in request.GET
-        
-        return False
+    def oauth2_process_response(self, request, response):
+        logging.debug('Saving oauth data to session')
+        request.session['facebook'] = self.oauth2_save_session()
 
 
 def _check_middleware(request):
@@ -185,8 +196,7 @@ def require_oauth(redirect_path=None, required_permissions=None,
 
             try:
                 fb = _check_middleware(request)
-                redirect_uri = fb.url_for(_redirect_path(redirect_path, fb, request.path))
-                fb.oauth2_process_code(request, redirect_uri)
+                redirect_uri = self.callback_path(request.path)
                 valid_token = fb.oauth2_check_session(request)
                 if required_permissions:
                     has_permissions = fb.oauth2_check_permissions(
@@ -210,18 +220,6 @@ def require_oauth(redirect_path=None, required_permissions=None,
         # newview.permissions = permissions        
         return newview
     return decorator
-
-def _redirect_path(redirect_path, fb, path):
-    """
-    Resolve the path to use for the redirect_uri for authorization
-    
-    """
-    if redirect_path:
-        if callable(redirect_path):
-            redirect_path = redirect_path(path)
-    else:
-        redirect_path = path
-    return redirect_path
 
 
 def _strip_code(path):
@@ -422,7 +420,6 @@ class FacebookMiddleware(object):
     callback_path can be a string or a callable.  Using a callable lets us
     pass in something like lambda reverse('our_canvas_view') so we can follow
     the DRY principle.
-
     """
 
     def __init__(self, api_key=None, secret_key=None, app_name=None,
@@ -448,7 +445,7 @@ class FacebookMiddleware(object):
                 callback_path=callback_path, internal=self.internal,
                 proxy=self.proxy, app_id=self.app_id, oauth2=self.oauth2)
         if self.oauth2:
-            request.facebook._oauth2_process_params(request)
+            request.facebook.oauth2_process_request(request)
         if not self.internal:
             if 'fb_sig_session_key' in request.GET and ('fb_sig_user' in request.GET or 'fb_sig_canvas_user' in request.GET):
                 request.facebook.session_key = request.session['facebook_session_key'] = request.GET['fb_sig_session_key']
@@ -458,7 +455,6 @@ class FacebookMiddleware(object):
                 request.facebook.uid = request.session['facebook_user_id']
 
     def process_response(self, request, response):
-        
         # Don't assume that request.facebook exists
         # - it's not necessarily true that all process_requests will have been called
         try:
@@ -466,6 +462,9 @@ class FacebookMiddleware(object):
         except AttributeError:
             return response
         
+        if self.oauth2:
+            fb.oauth2_process_response(request, response)
+
         if not self.internal and fb.session_key and fb.uid:
             request.session['facebook_session_key'] = fb.session_key
             request.session['facebook_user_id'] = fb.uid
