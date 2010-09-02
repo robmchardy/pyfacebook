@@ -296,6 +296,8 @@ def process_oauth(restore_state=True, in_canvas=True):
 
             # Work out what the original redirect_uri value was
             redirect_uri = fb.url_for(_strip_code(request.get_full_path()))
+            if restore_state and 'state' in request.GET:
+                redirect_uri += '?state=%s' % urlquote(request.GET['state'])
 
             if fb.oauth2_process_code(request, redirect_uri):
                 if restore_state:
