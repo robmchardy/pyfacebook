@@ -707,10 +707,10 @@ class Facebook(object):
 
     def validate_oauth_signed_request(self, signed_request):
         sig, payload = signed_request.split('.', 1)
-        def pad(str):
-            if len(str) % 4:
-                return str + '=' * (4 - len(str) % 4)
-            return str
+        def pad(string):
+            if len(string) % 4:
+                return string + '=' * (4 - len(string) % 4)
+            return string
         try:
             sig = base64.urlsafe_b64decode(pad(sig))
             data = base64.urlsafe_b64decode(pad(payload))
