@@ -60,20 +60,21 @@ class Facebook(facebook.Facebook):
         """
         valid_token = False
 
+        if 'oauth2_token' in request.session:
+            if reques.session['oauth2_token_expires'] > time.time()
+                return True
+
         # See if they're in the request
         if 'session' in request.POST:
-            print 'session from POST'
             values = self.validate_oauth_session(request.POST['session'])
 
         # Might be in the query string (e.g. from iframe)
         elif 'session' in request.GET:
-            print 'session from GET'
             values = self.validate_oauth_session(request.GET['session'])
 
         # Look out for an access_token in our cookies from the JS SDK FB.init
         elif request.COOKIES:
             values = self.validate_oauth_cookie_signature(request.COOKIES)
-            print 'session from COOKIE %s' % values
 
         if values and 'access_token' in values:
             request.session['oauth2_token'] = values['access_token']
@@ -81,10 +82,9 @@ class Facebook(facebook.Facebook):
             self.session_key = values['session_key']
             self.uid = values['uid']
             self.added = True
-                    
+
         # If we've been accepted by the user
         if self.added:
-            
             # See if we've got this user's access_token in our session
             if 'oauth2_token' in request.session:
                 self.oauth2_token = request.session['oauth2_token']
@@ -97,7 +97,7 @@ class Facebook(facebook.Facebook):
                 else:
                     del request.session['oauth2_token']
                     del request.session['oauth2_token_expires']
-                    
+
         return valid_token
 
     def oauth2_check_permissions(self, request, required_permissions,
