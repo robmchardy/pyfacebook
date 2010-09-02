@@ -243,8 +243,6 @@ def _redirect_path(redirect_path, fb, path):
     Resolve the path to use for the redirect_uri for authorization
     
     """
-    if not redirect_path and fb.oauth2_redirect:
-        redirect_path = fb.oauth2_redirect
     if redirect_path:
         if callable(redirect_path):
             redirect_path = redirect_path(path)
@@ -459,7 +457,7 @@ class FacebookMiddleware(object):
 
     def __init__(self, api_key=None, secret_key=None, app_name=None,
                  callback_path=None, internal=None, app_id=None,
-                 oauth2=None, oauth2_redirect=None):
+                 oauth2=None):
         self.api_key = api_key or settings.FACEBOOK_API_KEY
         self.secret_key = secret_key or settings.FACEBOOK_SECRET_KEY
         self.app_name = app_name or getattr(settings, 'FACEBOOK_APP_NAME', None)
@@ -467,7 +465,6 @@ class FacebookMiddleware(object):
         self.internal = internal or getattr(settings, 'FACEBOOK_INTERNAL', True)
         self.app_id = app_id or getattr(settings, 'FACEBOOK_APP_ID', None)
         self.oauth2 = oauth2 or getattr(settings, 'FACEBOOK_OAUTH2', False)
-        self.oauth2_redirect = oauth2_redirect or getattr(settings, 'FACEBOOK_OAUTH2_REDIRECT', None)
         self.proxy = None
         if getattr(settings, 'USE_HTTP_PROXY', False):
             self.proxy = settings.HTTP_PROXY
@@ -481,8 +478,6 @@ class FacebookMiddleware(object):
                 callback_path=callback_path, internal=self.internal,
                 proxy=self.proxy, app_id=self.app_id, oauth2=self.oauth2)
         if self.oauth2:
-            if self.oauth2_redirect:
-                request.facebook.oauth2_redirect = self.oauth2_redirect
             request.facebook._oauth2_process_params(request)
         if not self.internal:
             if 'fb_sig_session_key' in request.GET and ('fb_sig_user' in request.GET or 'fb_sig_canvas_user' in request.GET):

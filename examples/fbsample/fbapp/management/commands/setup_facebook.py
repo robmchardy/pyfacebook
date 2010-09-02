@@ -18,7 +18,6 @@ class Command(BaseCommand):
         internal = getattr(settings, 'FACEBOOK_INTERNAL', True)
         app_id = getattr(settings, 'FACEBOOK_APP_ID', None)
         oauth2 = getattr(settings, 'FACEBOOK_OAUTH2', False)
-        oauth2_redirect = getattr(settings, 'FACEBOOK_OAUTH2_REDIRECT', None)
         proxy = None
         if getattr(settings, 'USE_HTTP_PROXY', False):
             proxy = settings.HTTP_PROXY
