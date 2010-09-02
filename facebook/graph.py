@@ -78,7 +78,7 @@ class Graph(object):
         return self._request('GET', data=None, access_token=access_token)
 
     def post(self, data, access_token=None):
-        data = urllib.urlencode(data)
+        data = urllib.urlencode(data, True)
         return self._request('POST', data, access_token=access_token)
 
     def delete(self, access_token=None):
