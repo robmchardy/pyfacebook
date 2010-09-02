@@ -706,7 +706,7 @@ class Facebook(object):
         return None
 
     def validate_oauth_signed_request(self, signed_request):
-        sig, payload = signed_request.split('.')[:2]
+        sig, payload = signed_request.split('.', 1)
         def pad(str):
             if len(str) % 4:
                 return str + '=' * (4 - len(str) % 4)
