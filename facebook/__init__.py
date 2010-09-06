@@ -418,6 +418,26 @@ class Facebook(object):
         """
         return 'https://graph.facebook.com/%s?%s' % (path, urllib.urlencode(args))
 
+    def get_login_url(self, next=None, popup=False, required_permissions=None):
+        """
+        Returns the URL that the user should be redirected to in order to login.
+
+        next -- the URL that Facebook should redirect to after login
+        required_permissions -- permission required by the application
+
+        """
+        args = {
+            'client_id': self.app_id,
+            'redirect_uri': next
+        }
+
+        if required_permissions:
+            args['scope'] = required_permissions
+        if popup:
+            args['display'] = 'popup'
+
+        return self.get_graph_url('oauth/authorize', **args)
+
     def validate_oauth_session(self, session_json):
         session = simplejson.loads(session_json)
         sig = session.pop('sig')
