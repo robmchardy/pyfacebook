@@ -55,7 +55,6 @@ class pyfacebook_UnitTests(unittest.TestCase):
         self.assertEquals(f.auth_token,None)
         self.assertEquals(f.app_name,None)
         self.assertEquals(f.callback_path,None)
-        self.assertEquals(f.internal,None)
         
     def test2(self):
         args = {"arg1":"a","arg2":"b","arg3":"c"}
@@ -114,11 +113,9 @@ class pyfacebook_UnitTests(unittest.TestCase):
         fb = facebook.Facebook(my_api_key, my_secret_key)
         fb.login = self.login
         fb.auth.createToken()
-#        self.failUnlessRaises(RuntimeError,fb._add_session_args)
         response = {"session_key":"key","uid":"my_uid","secret":"my_secret","expires":"my_expires"}
         response_str = simplejson.dumps(response)
         fb.auth.getSession()
-        args = fb._add_session_args()
         
     def test7(self):
         global response_str

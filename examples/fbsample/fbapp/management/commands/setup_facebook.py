@@ -15,15 +15,13 @@ class Command(BaseCommand):
         secret_key = settings.FACEBOOK_SECRET_KEY
         app_name = getattr(settings, 'FACEBOOK_APP_NAME', None)
         callback_path = getattr(settings, 'FACEBOOK_CALLBACK_PATH', None)
-        internal = getattr(settings, 'FACEBOOK_INTERNAL', True)
         app_id = getattr(settings, 'FACEBOOK_APP_ID', None)
         oauth2 = getattr(settings, 'FACEBOOK_OAUTH2', False)
         proxy = None
         if getattr(settings, 'USE_HTTP_PROXY', False):
             proxy = settings.HTTP_PROXY
         facebook = Facebook(api_key,
-                secret_key, app_name=app_name,
-                callback_path=callback_path, internal=internal,
+                secret_key, app_name=app_name, callback_path=callback_path,
                 proxy=proxy, app_id=app_id, oauth2=oauth2)
         app_token = facebook.graph.get_app_access_token()
         subscriptions = facebook.graph.filter(app_id).filter('subscriptions')

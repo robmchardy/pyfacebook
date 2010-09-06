@@ -31,7 +31,7 @@ class VideoProxy(proxies.Proxy):
         if privacy is not None:
             args['privacy'] = privacy
 
-        args = self._client._build_post_args('facebook.video.upload', self._client._add_session_args(args))
+        args = self._client._build_post_args('facebook.video.upload', args)
 
         # check for a filename specified...if the user is passing binary data in
         # video then a filename will be specified

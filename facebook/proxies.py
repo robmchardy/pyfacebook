@@ -7,12 +7,10 @@ class Proxy(object):
     def __init__(self, client):
         self._client = client
 
-    def __call__(self, method=None, args=None, add_session_args=True, signed=False):
+    def __call__(self, method=None, args=None, signed=False):
         # for Django templates
         if method is None:
             return self
-        if add_session_args:
-            self._client._add_session_args(args)
         return self._client('%s.%s' % (self._name, method), args, signed=signed)
 
 def build_proxy(namespace, bindings, klass=Proxy):

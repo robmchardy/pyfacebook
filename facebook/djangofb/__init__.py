@@ -2,6 +2,7 @@ import datetime
 import logging
 import re
 import time
+import urllib
 import urlparse
 
 import facebook
@@ -11,20 +12,9 @@ from django.utils.http import urlquote
 from django.core.exceptions import ImproperlyConfigured
 from django.conf import settings
 
-__all__ = ['Facebook', 'FacebookMiddleware', 'require_login', 'require_add', 'on_install']
+__all__ = ['Facebook', 'FacebookMiddleware', 'require_oauth']
 
 class Facebook(facebook.Facebook):
-    def redirect(self, url):
-        """
-        Helper for Django which redirects to another page.
-        """
-        parts = urlparse.urlparse(url)
-        netloc = parts.netloc.split(':')[0]
-        if netloc.endswith('.facebook.com'):
-            return HttpResponse('<script type="text/javascript">\ntop.location.href = "%s";\n</script>' % url)
-        else:
-            return HttpResponseRedirect(url)
-
     def _oauth2_process_params(self, request):
         """
         Check a few key parameters for oauth methods
@@ -73,6 +63,24 @@ class Facebook(facebook.Facebook):
                 valid_token = True
 
         return valid_token
+
+    def require_auth(self, next=None, required_permissions=None):
+        args = {}
+        if next:
+            args['next'] = next
+        if required_permissions:
+            args['required_permissions'] = required_permissions
+        parts = urlparse.urlparse(settings.FACEBOOK_AUTH_URL)
+        query = urllib.urlencode(args)
+        url = urlparse.urlunparse((
+            parts.scheme,
+            parts.netloc,
+            parts.path,
+            parts.params,
+            query,
+            parts.fragment,
+        ))
+        return HttpResponseRedirect(url)
 
     def get_callback_path(self, path):
         """
@@ -136,7 +144,7 @@ class Facebook(facebook.Facebook):
             logging.debug('Exchanging oauth code for an access_token')
             # We've got a code from an authorisation, so convert it to a access_token
             self.oauth2_access_token(request.GET['code'], next=redirect_uri)
-            return self.redirect(self.get_app_url())
+            return HttpResponseRedirect(self.get_app_url())
         elif 'signed_request' in request.REQUEST:
             logging.debug('Loading oauth data from "signed_request"')
             self.oauth2_load_session(
@@ -145,11 +153,6 @@ class Facebook(facebook.Facebook):
             logging.debug('Loading oauth data from "session"')
             self.oauth2_load_session(
                     self.validate_oauth_session(request.REQUEST['session']))
-        elif request.COOKIES:
-            # Look out for an access_token in our cookies from the JS SDK FB.init
-            logging.debug('Loading oauth data from cookies')
-            self.oauth2_load_session(
-                    self.validate_oauth_cookie_signature(request.COOKIES))
 
     def oauth2_process_response(self, request, response):
         logging.debug('Saving oauth data to session')
@@ -162,9 +165,6 @@ def _check_middleware(request):
     except:
         raise ImproperlyConfigured('Make sure you have the Facebook middleware installed.')
 
-    if not fb.oauth2:
-        raise ImproperlyConfigured('Please ensure that oauth2 is enabled (e.g. via settings.FACEBOOK_OAUTH2).')
-    
     return fb
 
 
@@ -198,22 +198,19 @@ def require_oauth(redirect_path=None, required_permissions=None,
                 else:
                     has_permissions = True
                 if not valid_token or not has_permissions:
-                    url = fb.get_login_url(next=redirect_uri,
+                    return fb.require_auth(next=redirect_uri,
                             required_permissions=required_permissions)
-                    return fb.redirect(url)
                 return view(request, *args, **kwargs)
             except facebook.FacebookError as e:
                 # Invalid token (I think this can happen if the user logs out)
                 # Unfortunately we don't find this out until we use the api 
                 if e.code == 190:
                     del request.session['facebook']
-                    url = fb.get_login_url(next=redirect_uri,
+                    return fb.require_auth(next=redirect_uri,
                             required_permissions=required_permissions)
-                    return fb.redirect(url)
         # newview.permissions = permissions
         return newview
     return decorator
-
 
 def _strip_code(path):
     """
@@ -233,159 +230,6 @@ def _strip_code(path):
         # TODO strip error_reason instead here?
         return path
 
-
-def require_login(next=None, internal=None, required_permissions=None):
-    """
-    Decorator for Django views that requires the user to be logged in.
-    The FacebookMiddleware must be installed.
-
-    Standard usage:
-        @require_login()
-        def some_view(request):
-            ...
-
-    Redirecting after login:
-        To use the 'next' parameter to redirect to a specific page after login, a callable should
-        return a path relative to the Post-add URL. 'next' can also be an integer specifying how many
-        parts of request.path to strip to find the relative URL of the canvas page. If 'next' is None,
-        settings.callback_path and settings.app_name are checked to redirect to the same page after logging
-        in. (This is the default behavior.)
-        @require_login(next=some_callable)
-        def some_view(request):
-            ...
-    """
-    def decorator(view):
-        def newview(request, *args, **kwargs):
-            next = newview.next
-            internal = newview.internal
-
-            try:
-                fb = request.facebook
-            except:
-                raise ImproperlyConfigured('Make sure you have the Facebook middleware installed.')
-
-            if internal is None:
-                internal = request.facebook.internal
-
-            if callable(next):
-                next = next(request.path)
-            elif isinstance(next, int):
-                next = '/'.join(request.path.split('/')[next + 1:])
-            elif next is None and fb.callback_path and request.path.startswith(fb.callback_path):
-                next = request.path[len(fb.callback_path):]
-            elif not isinstance(next, str):
-                next = ''
-
-            if internal and request.method == 'GET' and fb.app_name:
-                next = "%s%s" % (fb.get_app_url(), next)
-
-            try:
-                session_check = fb.check_session(request)
-            except ValueError:
-                session_check = False
-
-            if session_check and required_permissions:
-                req_perms = set(required_permissions)
-                perms = set(fb.ext_perms)
-                has_permissions = req_perms.issubset(perms)
-            else:
-                has_permissions = True
-
-            if not (session_check and has_permissions):
-                #If user has never logged in before, the get_login_url will redirect to the TOS page
-                return fb.redirect(
-                    fb.get_login_url(next=next,
-                        required_permissions=required_permissions)) 
-
-            return view(request, *args, **kwargs)
-        newview.next = next
-        newview.internal = internal
-        return newview
-    return decorator
-
-
-def require_add(next=None, internal=None):
-    """
-    Decorator for Django views that requires application installation.
-    The FacebookMiddleware must be installed.
-    
-    Standard usage:
-        @require_add()
-        def some_view(request):
-            ...
-
-    Redirecting after installation:
-        To use the 'next' parameter to redirect to a specific page after login, a callable should
-        return a path relative to the Post-add URL. 'next' can also be an integer specifying how many
-        parts of request.path to strip to find the relative URL of the canvas page. If 'next' is None,
-        settings.callback_path and settings.app_name are checked to redirect to the same page after logging
-        in. (This is the default behavior.)
-        @require_add(next=some_callable)
-        def some_view(request):
-            ...
-    """
-    def decorator(view):
-        def newview(request, *args, **kwargs):
-            next = newview.next
-            internal = newview.internal
-
-            try:
-                fb = request.facebook
-            except:
-                raise ImproperlyConfigured('Make sure you have the Facebook middleware installed.')
-
-            if internal is None:
-                internal = request.facebook.internal
-
-            if callable(next):
-                next = next(request.path)
-            elif isinstance(next, int):
-                next = '/'.join(request.path.split('/')[next + 1:])
-            elif next is None and fb.callback_path and request.path.startswith(fb.callback_path):
-                next = request.path[len(fb.callback_path):]
-            else:
-                next = ''
-
-            if not fb.check_session(request):
-                if fb.added:
-                    if request.method == 'GET' and fb.app_name:
-                        return fb.redirect('%s%s' % (fb.get_app_url(), next))
-                    return fb.redirect(fb.get_login_url(next=next))
-                else:
-                    return fb.redirect(fb.get_add_url(next=next))
-
-            if not fb.added:
-                return fb.redirect(fb.get_add_url(next=next))
-
-            if internal and request.method == 'GET' and fb.app_name:
-                return fb.redirect('%s%s' % (fb.get_app_url(), next))
-
-            return view(request, *args, **kwargs)
-        newview.next = next
-        newview.internal = internal
-        return newview
-    return decorator
-
-def on_install(on_install=None):
-    """
-    Decorator for Django views that handles application installation.
-    The FacebookMiddleware must be installed.
-    
-    Post-install processing:
-        Set the on_install parameter to a callable in order to handle special post-install processing.
-        The callable should take a request object as the parameter.
-        @on_install(on_install=some_callable)
-        def some_view(request):
-            ...
-    """
-    def decorator(view):
-        def newview(request, *args, **kwargs):
-            if 'installed' in request.GET and callable(on_install):
-                on_install(request)
-            return view(request, *args, **kwargs)
-        return newview
-    return decorator
-
 # try to preserve the argspecs
 try:
     import decorator
@@ -401,9 +245,6 @@ else:
             return decorator.new_wrapper(newdecorator, original)
         return decorator.new_wrapper(updated, f)
     require_oauth = updater(require_oauth)
-    require_login = updater(require_login)
-    require_add = updater(require_add)
-    on_install = updater(on_install)
 
 class FacebookMiddleware(object):
     """
@@ -415,15 +256,13 @@ class FacebookMiddleware(object):
     """
 
     def __init__(self, api_key=None, secret_key=None, app_name=None,
-                 callback_path=None, internal=None, app_id=None,
+                 callback_path=None, app_id=None,
                  oauth2=None):
         self.api_key = api_key or settings.FACEBOOK_API_KEY
         self.secret_key = secret_key or settings.FACEBOOK_SECRET_KEY
         self.app_name = app_name or getattr(settings, 'FACEBOOK_APP_NAME', None)
         self.callback_path = callback_path or getattr(settings, 'FACEBOOK_CALLBACK_PATH', None)
-        self.internal = internal or getattr(settings, 'FACEBOOK_INTERNAL', True)
         self.app_id = app_id or getattr(settings, 'FACEBOOK_APP_ID', None)
-        self.oauth2 = oauth2 or getattr(settings, 'FACEBOOK_OAUTH2', False)
         self.proxy = None
         if getattr(settings, 'USE_HTTP_PROXY', False):
             self.proxy = settings.HTTP_PROXY
@@ -434,19 +273,17 @@ class FacebookMiddleware(object):
             callback_path = callback_path()
         request.facebook = Facebook(self.api_key,
                 self.secret_key, app_name=self.app_name,
-                callback_path=callback_path, internal=self.internal,
-                proxy=self.proxy, app_id=self.app_id, oauth2=self.oauth2)
-        if self.oauth2:
-            response = request.facebook.oauth2_process_request(request)
-            if response:
-                return response
-        if not self.internal:
-            if 'fb_sig_session_key' in request.GET and ('fb_sig_user' in request.GET or 'fb_sig_canvas_user' in request.GET):
-                request.facebook.session_key = request.session['facebook_session_key'] = request.GET['fb_sig_session_key']
-                request.facebook.uid = request.session['facebook_user_id'] = request.GET['fb_sig_user'] or request.GET['fb_sig_canvas_user']
-            elif int(request.GET.get('fb_sig_added', '1')) and request.session.get('facebook_session_key', None) and request.session.get('facebook_user_id', None):
-                request.facebook.session_key = request.session['facebook_session_key']
-                request.facebook.uid = request.session['facebook_user_id']
+                callback_path=callback_path, proxy=self.proxy,
+                app_id=self.app_id)
+        response = request.facebook.oauth2_process_request(request)
+        if response:
+            return response
+        if 'fb_sig_session_key' in request.GET and ('fb_sig_user' in request.GET or 'fb_sig_canvas_user' in request.GET):
+            request.facebook.session_key = request.session['facebook_session_key'] = request.GET['fb_sig_session_key']
+            request.facebook.uid = request.session['facebook_user_id'] = request.GET['fb_sig_user'] or request.GET['fb_sig_canvas_user']
+        elif int(request.GET.get('fb_sig_added', '1')) and request.session.get('facebook_session_key', None) and request.session.get('facebook_user_id', None):
+            request.facebook.session_key = request.session['facebook_session_key']
+            request.facebook.uid = request.session['facebook_user_id']
 
     def process_response(self, request, response):
         # Don't assume that request.facebook exists
@@ -455,36 +292,15 @@ class FacebookMiddleware(object):
             fb = request.facebook
         except AttributeError:
             return response
-        
-        if self.oauth2:
-            fb.oauth2_process_response(request, response)
 
-        if not self.internal and fb.session_key and fb.uid:
+        fb.oauth2_process_response(request, response)
+
+        if fb.session_key and fb.uid:
             request.session['facebook_session_key'] = fb.session_key
             request.session['facebook_user_id'] = fb.uid
 
             if fb.session_key_expires:
                 expiry = datetime.datetime.utcfromtimestamp(fb.session_key_expires)
                 request.session.set_expiry(expiry)
-
-        if not fb.is_session_from_cookie:
-            # Make sure the browser accepts our session cookies inside an Iframe
-            response['P3P'] = 'CP="NOI DSP COR NID ADMa OPTa OUR NOR"'
-            fb_cookies = {
-                'expires': fb.session_key_expires,
-                'session_key': fb.session_key,
-                'user': fb.uid,
-            }
-            fb_cookies = dict((k, v) for k, v in fb_cookies.items()
-                              if v is not None)
-
-            expire_time = None
-            if fb.session_key_expires:
-                expire_time = datetime.datetime.utcfromtimestamp(fb.session_key_expires)
-
-            for k in fb_cookies:
-                response.set_cookie(self.api_key + '_' + k, fb_cookies[k], expires=expire_time)
-            if fb_cookies:
-                response.set_cookie(self.api_key , fb._hash_args(fb_cookies), expires=expire_time)
 
         return response

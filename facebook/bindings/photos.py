@@ -34,7 +34,7 @@ class PhotosProxy(proxies.Proxy):
         else:
             url = self._client.facebook_url
 
-        args = self._client._build_post_args('facebook.photos.upload', self._client._add_session_args(args))
+        args = self._client._build_post_args('facebook.photos.upload', args)
 
         # check for a filename specified...if the user is passing binary data in
         # image then a filename will be specified
