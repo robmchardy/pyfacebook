@@ -15,18 +15,6 @@ from django.conf import settings
 __all__ = ['Facebook', 'FacebookMiddleware', 'require_oauth']
 
 class Facebook(facebook.Facebook):
-    def _oauth2_process_params(self, request):
-        """
-        Check a few key parameters for oauth methods
-        
-        """
-        self.added = (request.REQUEST.get('fb_sig_added') == '1')
-        # If app_id is not set explicitly, pick it up from the params
-        if not self.app_id:
-            self.app_id = request.REQUEST.get('fb_sig_app_id')
-        if not self.uid:
-            self.uid = request.REQUEST.get('fb_sig_user')
-
     def oauth2_load_session(self, data):
         if data and 'access_token' in data:
             self.oauth2_token = data['access_token']
@@ -87,7 +75,6 @@ class Facebook(facebook.Facebook):
         Resolve the path to use for the redirect_uri for authorization
         """
         return '%s%s' % (settings.SITE_URL, path)
-
 
     def oauth2_check_permissions(self, request, required_permissions,
                                  additional_permissions=None,
