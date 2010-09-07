@@ -212,24 +212,6 @@ def require_oauth(redirect_path=None, required_permissions=None,
         return newview
     return decorator
 
-def _strip_code(path):
-    """
-    Restore the path to the original redirect_uri without the code parameter.
-    
-    """
-    try:
-        begin = path.find('&code')
-        if begin == -1:
-            begin = path.index('?code')
-        end = path.find('&', begin+1)
-        if end == -1:
-            end = len(path)
-        return path[:begin] + path[end:]
-    except ValueError:
-        # no code, probably failed to authenticate
-        # TODO strip error_reason instead here?
-        return path
-
 # try to preserve the argspecs
 try:
     import decorator
