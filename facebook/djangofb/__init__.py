@@ -146,15 +146,6 @@ class Facebook(facebook.Facebook):
         request.session['facebook'] = self.oauth2_save_session()
 
 
-def _check_middleware(request):
-    try:
-        fb = request.facebook
-    except:
-        raise ImproperlyConfigured('Make sure you have the Facebook middleware installed.')
-
-    return fb
-
-
 def require_oauth(redirect_path=None, required_permissions=None,
         check_permissions=None, force_check=True):
     """
@@ -175,7 +166,7 @@ def require_oauth(redirect_path=None, required_permissions=None,
             # permissions=newview.permissions
 
             try:
-                fb = _check_middleware(request)
+                fb = request.facebook
                 redirect_uri = fb.get_callback_path(request.path)
                 valid_token = fb.oauth2_check_session(request)
                 if required_permissions:
