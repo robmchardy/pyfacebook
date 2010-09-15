@@ -52,13 +52,8 @@ class Graph(object):
             response = urllib2.urlopen(request).read()
         return response
 
-    def _request(self, method, data=None, access_token=None, content_type=None):
-        if not self._path:
-            raise AttributeError('No path given to graph object')
-        query = {}
-        access_token = access_token or getattr(self._facebook, 'oauth2_token', None)
-        if access_token:
-            query['access_token'] = access_token
+    def get_url(self, query=None):
+        query = query or {}
         query = urllib.urlencode(query)
         url = urlparse.urlunparse((
             self.FACEBOOK_GRAPH_SCHEME,
@@ -68,6 +63,16 @@ class Graph(object):
             query,
             '',
         ))
+        return url
+
+    def _request(self, method, data=None, access_token=None, content_type=None):
+        if not self._path:
+            raise AttributeError('No path given to graph object')
+        query = {}
+        access_token = access_token or getattr(self._facebook, 'oauth2_token', None)
+        if access_token:
+            query['access_token'] = access_token
+        url = self.get_url(query)
         request = Request(url, data, method=method, content_type=content_type)
         response = self._read(request)
         if response:
