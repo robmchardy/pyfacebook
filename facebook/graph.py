@@ -32,6 +32,19 @@ class Request(urllib2.Request):
             return self.method.upper()
         return urllib2.Request.get_method(self)
 
+def urlencode(query, doseq=0):
+    def to_utf8(s):
+        if isinstance(s, unicode):
+            return s.encode('utf-8')
+        return s
+    query = dict(query)
+    for k, v in query.items():
+         if isinstance(v, (list,tuple)):
+             query[k] = [to_utf8(i) for i in v]
+         else:
+             query[k] = to_utf8(v)
+    return urllib.urlencode(query, doseq)
+
 class Graph(object):
     FACEBOOK_GRAPH_SCHEME = 'https'
     FACEBOOK_GRAPH_BASE = 'graph.facebook.com'
@@ -83,7 +96,7 @@ class Graph(object):
         return self._request('GET', data=None, access_token=access_token)
 
     def post(self, data, access_token=None):
-        data = urllib.urlencode(data, True)
+        data = urlencode(data, True)
         return self._request('POST', data, access_token=access_token)
 
     def delete(self, access_token=None):
