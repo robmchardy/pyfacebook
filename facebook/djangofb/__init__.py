@@ -186,6 +186,7 @@ def require_oauth(redirect_path=None, required_permissions=None,
                     del request.session['facebook']
                     return fb.require_auth(next=redirect_uri,
                             required_permissions=required_permissions)
+                raise
         # newview.permissions = permissions
         return newview
     return decorator
