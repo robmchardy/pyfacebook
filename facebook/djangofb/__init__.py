@@ -90,6 +90,7 @@ class Facebook(facebook.Facebook):
 
         req_perms = set(required_permissions.split(','))
 
+        cached_perms = set()
         if 'oauth2_extended_permissions' in request.session:
             cached_perms = request.session['oauth2_extended_permissions']
 
@@ -108,8 +109,14 @@ class Facebook(facebook.Facebook):
             if additional_permissions:
                 perms_query += ',' + additional_permissions
                 
-            perms_results = self.fql.query('select %s from permissions where uid=%s'
-                                           % (perms_query, self.uid))[0]
+            perms_results = self.fql.query(
+                    'select %s from permissions where uid=%s'
+                    % (perms_query, self.uid))
+
+            if not perms_results:
+                return False
+
+            perms_results = perms_results[0]
             actual_perms = set()
             for permission, allowed in perms_results.items():
                 if allowed == 1:
