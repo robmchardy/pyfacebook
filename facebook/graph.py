@@ -56,6 +56,10 @@ class Graph(object):
     def filter(self, path):
         return Graph(self._facebook, self._path + [path])
 
+    def multiquery(self, ids, access_token=None):
+        query = {'ids': u','.join(ids)}
+        return self._request('GET', data=None, access_token=access_token, query=query)
+
     def _read(self, request):
         if self._facebook.proxy:
             proxy_handler = urllib2.ProxyHandler(self._facebook.proxy)
@@ -78,10 +82,8 @@ class Graph(object):
         ))
         return url
 
-    def _request(self, method, data=None, access_token=None, content_type=None):
-        if not self._path:
-            raise AttributeError('No path given to graph object')
-        query = {}
+    def _request(self, method, data=None, access_token=None, content_type=None, query=None):
+        query = query or {}
         access_token = access_token or getattr(self._facebook, 'oauth2_token', None)
         if access_token:
             query['access_token'] = access_token
@@ -93,13 +95,19 @@ class Graph(object):
         return None
 
     def get(self, access_token=None):
+        if not self._path:
+            raise AttributeError('No path given to graph object')
         return self._request('GET', data=None, access_token=access_token)
 
     def post(self, data, access_token=None):
+        if not self._path:
+            raise AttributeError('No path given to graph object')
         data = urlencode(data, True)
         return self._request('POST', data, access_token=access_token)
 
     def delete(self, access_token=None):
+        if not self._path:
+            raise AttributeError('No path given to graph object')
         return self._request('DELETE', data=None, access_token=access_token)
 
     def __iter__(self):
