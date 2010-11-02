@@ -150,8 +150,13 @@ class Facebook(facebook.Facebook):
 
     def oauth2_process_response(self, request, response):
         logging.debug('Saving oauth data to session')
-        request.session['facebook'] = self.oauth2_save_session()
-
+        if request.user.is_authenticated():
+            request.session['facebook'] = self.oauth2_save_session()
+        else:
+            self.session_key = None
+            self.uid = None
+            if 'facebook' in request.session:
+                del request.session['facebook']
 
 def require_oauth(redirect_path=None, required_permissions=None,
         check_permissions=None, force_check=True):
