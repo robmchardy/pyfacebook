@@ -52,6 +52,14 @@ class Facebook(facebook.Facebook):
 
         return valid_token
 
+    def oauth2_clear_state(self, request):
+        if 'oauth2_extended_permissions' in request.session:
+            del request.session['oauth2_extended_permissions']
+        self.oauth2_token = None
+        self.oauth2_token_expires = None
+        self.session_key = None
+        self.uid = None
+
     def require_auth(self, next=None, required_permissions=None):
         args = {}
         if next:
@@ -150,13 +158,7 @@ class Facebook(facebook.Facebook):
 
     def oauth2_process_response(self, request, response):
         logging.debug('Saving oauth data to session')
-        if request.user.is_authenticated():
-            request.session['facebook'] = self.oauth2_save_session()
-        else:
-            self.session_key = None
-            self.uid = None
-            if 'facebook' in request.session:
-                del request.session['facebook']
+        request.session['facebook'] = self.oauth2_save_session()
 
 def require_oauth(redirect_path=None, required_permissions=None,
         check_permissions=None, force_check=True):
@@ -181,7 +183,7 @@ def require_oauth(redirect_path=None, required_permissions=None,
                 fb = request.facebook
                 redirect_uri = fb.get_callback_path(request.path)
                 valid_token = fb.oauth2_check_session(request)
-                if required_permissions:
+                if valid_token and required_permissions:
                     has_permissions = fb.oauth2_check_permissions(
                         request, required_permissions, check_permissions,
                         valid_token, force_check)
