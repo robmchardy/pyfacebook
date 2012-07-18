@@ -139,9 +139,10 @@ class Facebook(facebook.Facebook):
         Process a request handling oauth data.
         """
         redirect_uri = self.get_callback_path(request.path)
-        logging.debug('Restoring oauth data from a saved session')
+        # logging.debug('Restoring oauth data from a saved session')
         if 'facebook' in request.session:
-            self.oauth2_load_session(request.session['facebook'])
+            logging.debug('skipping oauth2_load_session')
+            # self.oauth2_load_session(request.session['facebook'])
         fbsr_cookie_key = 'fbsr_%s' % (self.app_id, )
         if 'code' in request.GET:
             logging.debug('Exchanging oauth code for an access_token')
@@ -162,8 +163,9 @@ class Facebook(facebook.Facebook):
                     self.validate_oauth_signed_request(request.COOKIES[fbsr_cookie_key]))
 
     def oauth2_process_response(self, request, response):
-        logging.debug('Saving oauth data to session')
-        request.session['facebook'] = self.oauth2_save_session()
+        # logging.debug('Saving oauth data to session')
+        logging.debug('skipping oauth2_save_session')
+        # request.session['facebook'] = self.oauth2_save_session()
 
 def require_oauth(redirect_path=None, required_permissions=None,
         check_permissions=None, force_check=True):
