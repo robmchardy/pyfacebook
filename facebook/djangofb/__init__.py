@@ -134,6 +134,7 @@ class Facebook(facebook.Facebook):
         logging.debug('Restoring oauth data from a saved session')
         if 'facebook' in request.session:
             self.oauth2_load_session(request.session['facebook'])
+        fbsr_cookie_key = 'fbsr_%s' % (self.app_id, )
         if 'code' in request.GET:
             logging.debug('Exchanging oauth code for an access_token')
             # We've got a code from an authorisation, so convert it to a access_token
@@ -147,6 +148,10 @@ class Facebook(facebook.Facebook):
             logging.debug('Loading oauth data from "session"')
             self.oauth2_load_session(
                     self.validate_oauth_session(request.REQUEST['session']))
+        elif fbsr_cookie_key in request.COOKIES:
+            # logging.debug('found fbsr_ cookie')
+            self.oauth2_load_session(
+                    self.validate_oauth_signed_request(request.COOKIES[fbsr_cookie_key]))
 
     def oauth2_process_response(self, request, response):
         logging.debug('Saving oauth data to session')
